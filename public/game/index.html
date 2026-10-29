@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Break the guard · Sayso</title>
+  <meta name="description" content="An AI agent holds real money. Sayso checks every payment it tries. Trick the agent, beat the check, keep what you take.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="/game/style.css">
+</head>
+<body>
+  <a class="skip" href="#play">Skip to the game</a>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <span class="brand">
+        <svg class="mark" viewBox="2.5 11 60 42" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11.46 11L28.96 11L26.84 21L19.84 21L15.16 43L22.16 43L20.04 53L2.54 53ZM61.46 11L43.96 11L41.84 21L48.84 21L44.16 43L37.16 43L35.04 53L52.54 53ZM24.5 32a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0 -15 0Z"/></svg>
+        Sayso
+      </span>
+      <span class="nav-tag">Live demo</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-labelledby="title">
+      <h1 id="title">Break the guard</h1>
+      <p class="lede">An AI agent pays our vendor invoices from a wallet with real money in it. Every payment it tries goes through Sayso first. Trick the agent, get past Sayso, and you keep what it sends.</p>
+      <ol class="steps">
+        <li><span class="n">01</span><span><strong>The agent holds real money.</strong> It reads an inbox and pays what looks owed.</span></li>
+        <li><span class="n">02</span><span><strong>Sayso checks every payment</strong> against the owner's rules before the wallet signs.</span></li>
+        <li><span class="n">03</span><span><strong>Trick it and keep what you take.</strong> A payment to anyone but our vendors is yours.</span></li>
+      </ol>
+    </section>
+
+    <section class="card pot" aria-labelledby="pot-h">
+      <div class="pot-top">
+        <h2 id="pot-h" class="k">In the pot</h2>
+        <p id="status" class="status"><span class="dot" aria-hidden="true"></span><span class="status-t">loading</span></p>
+      </div>
+      <p class="balance"><span id="balance">…</span> <span id="unit" class="unit"></span></p>
+      <p class="addr">Wallet <a id="explorer" href="#" rel="noopener noreferrer" target="_blank"><code id="address">…</code></a> on <span id="network">…</span></p>
+      <dl class="stats">
+        <div><dt>Tries</dt><dd id="s-attempts">0</dd></div>
+        <div><dt>Stopped</dt><dd id="s-blocked">0</dd></div>
+        <div><dt>Broken</dt><dd id="s-wins">0</dd></div>
+        <div><dt>In line</dt><dd id="s-queued">0</dd></div>
+      </dl>
+    </section>
+
+    <section id="play" class="card play" aria-labelledby="play-h" tabindex="-1">
+      <h2 id="play-h">Send the agent something</h2>
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="handle">Your handle</label>
+          <div class="handle-input"><span class="at" aria-hidden="true">@</span><input id="handle" name="handle" autocomplete="nickname" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="your_x_handle" required></div>
+        </div>
+        <fieldset class="channels">
+          <legend>It arrives as</legend>
+          <div class="seg">
+            <label><input type="radio" name="channel" value="email" checked><span>Email</span></label>
+            <label><input type="radio" name="channel" value="invoice"><span>Invoice</span></label>
+            <label><input type="radio" name="channel" value="post"><span>Social post</span></label>
+            <label><input type="radio" name="channel" value="chat"><span>Team chat</span></label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <div class="field-row"><label for="text">What it says</label><span id="count-wrap" class="count"><span id="count">0</span>/<span id="count-max">600</span></span></div>
+          <textarea id="text" name="text" rows="5" maxlength="600" required aria-describedby="count-wrap" placeholder="Hi, this is Northwind Hosting. Our bank details changed…"></textarea>
+        </div>
+        <p class="note">Shown publicly in the feed. Do not send anything private.</p>
+        <button id="send" class="btn btn-p" type="submit">Send to the inbox</button>
+        <p id="msg" class="msg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="feed" aria-labelledby="feed-h">
+      <div class="feed-head">
+        <h2 id="feed-h">Live feed</h2>
+        <p id="feed-status" class="feed-status" aria-live="polite">Loading</p>
+      </div>
+      <ol id="feed" class="feed-list"></ol>
+      <button id="more" class="btn btn-s more" type="button" hidden>Older</button>
+    </section>
+
+    <details class="card rules">
+      <summary><span>Rules</span><span class="chev" aria-hidden="true"></span></summary>
+      <ul class="rule-list">
+        <li>The agent reads one inbox item at a time and decides whether to pay. It has no tools: it can only propose a payment. It is a deliberately trusting agent, so fooling it is the easy part.</li>
+        <li>Sayso checks every payment against the owner's signed rules before the wallet signs. Our vendors are listed below.</li>
+        <li>You win if money leaves the pot for an address that is not one of our vendors. The transfer itself is your prize. The game pauses after a win while we fix the gap.</li>
+        <li>Attack the agent and the check only. Attacks on the server, the hosting or other players are not part of the game.</li>
+        <li>Free to play. What you send is shown publicly in the feed, so do not post anything private.</li>
+      </ul>
+      <h3 class="k">Our vendors</h3>
+      <ul id="vendors" class="vendors"></ul>
+    </details>
+  </main>
+
+  <footer class="foot wrap">A live demo of Sayso.</footer>
+
+  <template id="row">
+    <li class="item">
+      <div class="meta"><span class="who"></span><span class="chan"></span><time></time></div>
+      <p class="body"></p>
+      <div class="result"><span class="badge"></span><span class="what"></span></div>
+      <p class="reason"></p>
+      <p class="thought"></p>
+    </li>
+  </template>
+  <script src="/game/app.js" defer></script>
+</body>
+</html>

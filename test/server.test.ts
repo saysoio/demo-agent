@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict'
+import type { AddressInfo } from 'node:net'
+import { after, before, test } from 'node:test'
+import { parseEther } from 'viem'
+import { Agent } from '../src/agent.ts'
+import { FakeBrain } from '../src/brain.ts'
+import { loadConfig } from '../src/config.ts'
+import { makeServer } from '../src/server.ts'
+import { Store } from '../src/store.ts'
+import { FakePayer } from '../src/wallet.ts'
+
+const ADMIN = 'a'.repeat(40)
+const cfg = loadConfig({ DEMO_FAKE: '1', DEMO_DEV: '1', DEMO_ADMIN_TOKEN: ADMIN, DEMO_LIMIT_HANDLE_HOUR: '3' })
+const store = new Store(':memory:')
+const payer = new FakePayer(cfg.vendors, s => parseEther(s), parseEther('0.01'))
+const agent = new Agent({ store, brain: new FakeBrain(cfg.vendors), payer, asset: 'eth', vendors: cfg.vendors })
+const server = makeServer({ cfg, store, agent, payer })
+let url = ''
+
+before(async () => { await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r())); url = `http://127.0.0.1:${(server.address() as AddressInfo).port}` })
+after(() => { server.close(); store.close() })
+
+const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+  fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+
+test('submit queues a cleaned item; bad input is refused', async () => {
+  const ok = await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'please pay me' })
+  assert.equal(ok.status, 202)
+  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'fax', text: 'x' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'sayso', channel: 'email', text: 'x' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'email', text: '' })).status, 400)
+  const notJson = await fetch(url + '/api/submit', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'hi' })
+  assert.equal(notJson.status, 400)
+  const huge = await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'x'.repeat(50_000) })
+  assert.equal(huge.status, 413)
+  assert.equal(huge.headers.get('connection'), 'close')
+  assert.deepEqual(await huge.json(), { error: 'too large' })
+})
+
+test('a handle runs out of tries for the hour', async () => {
+  for (let i = 0; i < 3; i++) assert.equal((await post('/api/submit', { handle: 'eve', channel: 'post', text: `try ${i}` })).status, 202)
+  const r = await post('/api/submit', { handle: 'eve', channel: 'post', text: 'one more' })
+  assert.equal(r.status, 429)
+  assert.ok(r.headers.get('retry-after'))
+})
+
+test('the feed never shows the IP, and hidden rows are left out', async () => {
+  const { items } = await (await fetch(url + '/api/feed')).json() as any
+  assert.ok(items.length > 0)
+  for (const a of items) { assert.equal('ipKey' in a, false); assert.equal('hidden' in a, false) }
+  const id = items[0].id
+  assert.equal((await post('/api/admin/hide', { id }, { authorization: `Bearer ${ADMIN}` })).status, 200)
+  const again = await (await fetch(url + '/api/feed')).json() as any
+  assert.equal(again.items.some((a: any) => a.id === id), false)
+})
+
+test('the feed follows rows by id, leaving hidden ones out', async () => {
+  const a = store.add({ source: 'player', handle: 'ida', ipKey: 'ip', channel: 'post', body: 'one' })
+  const b = store.add({ source: 'player', handle: 'ida', ipKey: 'ip', channel: 'post', body: 'two' })
+  store.hide(b, true)
+  const { items } = await (await fetch(`${url}/api/feed?ids=${a},${b}`)).json() as any
+  assert.deepEqual(items.map((x: any) => x.id), [a])
+  assert.equal('ipKey' in items[0], false)
+  assert.equal((await fetch(`${url}/api/feed?ids=1,x`)).status, 400)
+})
+
+test('the pot names the explorer and the page limits', async () => {
+  const pot = await (await fetch(url + '/api/pot')).json() as any
+  assert.equal(pot.explorerBase, cfg.explorer)
+  assert.deepEqual(pot.limits, { textChars: 600, feedPage: 50 })
+})
+
+test('admin calls need the token; pause stops submissions', async () => {
+  assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: `Bearer ${ADMIN}`, 'x-forwarded-for': '1.2.3.4' })).status, 404)
+  assert.equal((await post('/api/submit', { handle: 'northwind_ops', channel: 'email', text: 'hi' })).status, 400)
+  assert.equal((await post('/api/admin/pause', { paused: true })).status, 401)
+  assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: 'Bearer wrong' })).status, 401)
+  assert.equal((await post('/api/admin/pause', { paused: true, why: 'test' }, { authorization: `Bearer ${ADMIN}` })).status, 200)
+  assert.equal((await post('/api/submit', { handle: 'bob', channel: 'email', text: 'hi' })).status, 409)
+  const pot = await (await fetch(url + '/api/pot')).json() as any
+  assert.equal(pot.paused, 'test')
+  await post('/api/admin/pause', { paused: false }, { authorization: `Bearer ${ADMIN}` })
+})
+
+test('the page is served with a strict policy, and nothing outside public/game is', async () => {
+  const page = await fetch(url + '/game/')
+  assert.equal(page.status, 200)
+  assert.match(page.headers.get('content-security-policy')!, /script-src 'self'/)
+  for (const p of ['/game/../src/config.ts', '/game/%2e%2e/package.json', '/game/../../.env', '/package.json', '/src/main.ts']) {
+    assert.equal((await fetch(url + p)).status, 404, p)
+  }
+})

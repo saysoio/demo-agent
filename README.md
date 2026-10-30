@@ -17,7 +17,7 @@ player ──/game/ form──▶ inbox (SQLite) ──▶ Haiku reads one item 
 - **The code checks shape only** (`src/guard/model.ts` `checkDecision`): a real address and a positive amount. It never
   decides whether to pay. sayso does.
 - **The wallet** is a Coinbase CDP server-wallet account: the key stays with Coinbase. It is wrapped by the `saysoio`
-  SDK in enforce mode, fail-closed. A block, an ask (nobody is on duty to approve), or a slow or unverifiable answer means
+  SDK (0.7.0) in enforce mode, which fails closed. A block, an ask (nobody is on duty to approve), or a slow or unverifiable answer means
   "not signed".
 - **Four ways in** for players: email, invoice, social post, a message in the internal team chat. Each is one item, read
   on its own.
@@ -125,9 +125,14 @@ gets its base URL from the box (`api.anthropic.com` unless `DEMO_LLM_BASE_URL` i
    account in their project, past sayso. Give this one account its own project, and set a policy that allows only
    `transfer` on USDC to the vendor addresses under the per-payment cap, and denies everything else (other contracts,
    ETH sends, message and hash signing). Then a full takeover of the box is bounded by the policy too.
-2. **A saysoio release with fee bounds.** 0.6.3 sends through viem's own `sendTransaction` and does not compare the
-   signed bytes with the checked transaction. The box sets its own gas limit and fee ceiling (`DEMO_MAX_FEE_GWEI`) in the
-   meantime.
+2. **saysoio 0.7.0, published.** The box is built against 0.7.0 (`package.json` pins it exactly). 0.7.0 signs only on
+   sayso's signed allow for that very request (an outage, a timeout past 10 s or an unverified answer is refused; 0.6.3
+   could sign one once it had seen shadow), signs first, decodes and compares the bytes with the checked transaction
+   before it broadcasts them, and bounds the fee of every transaction. The box tightens those bounds to
+   `DEMO_MAX_FEE_GWEI` (`feeBounds` in `src/wallet.ts`: priority fee at most the ceiling, gas x fee at most our gas limit
+   x the ceiling, at most 60 such fees an hour) and keeps its own gas limit and per-gas ceiling, checked before sayso is
+   asked. Until 0.7.0 is on npm the lockfile still resolves 0.6.3: after publish run
+   `npm install saysoio@0.7.0 --save-exact`, check `npm test` and `npm run typecheck`, and commit `package-lock.json`.
 3. **Mandate strictness: decided, `normal`.** The published rules avoid the words sayso's compiler reads as `strict`
    (only, never, nothing else) or `lenient` (roughly, mostly), and setup refuses anything but `strictness: normal`.
    They state a per-payment, daily and weekly cap (`DEMO_WEEKLY_CAP`, three times `DEMO_DAILY_CAP` by default). Under

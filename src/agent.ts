@@ -5,7 +5,7 @@ import type { Brain, Decision } from './brain.ts'
 import { BUDGET_PAUSE } from './spend.ts'
 import { decimalsFor, unitName, type Asset, type Vendor } from './config.ts'
 import { directory, mailbox, type VendorEntry } from './directory.ts'
-import { checkDecision, cleanModelText, errorTag, MODEL_TEXT, slug } from './guard/index.ts'
+import { checkDecision, cleanModelText, errorTag, escapeMarkup, MODEL_TEXT, slug } from './guard/index.ts'
 import type { PayContext, Payer } from './wallet.ts'
 import type { Attempt, Result, Store } from './store.ts'
 
@@ -28,9 +28,9 @@ const CHANNEL_NAMES: Record<Attempt['channel'], string> = { email: 'an email', i
  *  item's text is quoted after the label so it cannot pass for it. */
 export function payContext(a: Pick<Attempt, 'source' | 'channel' | 'handle' | 'from' | 'body'>, thought: string | null): PayContext | null {
   if (a.source === 'vendor') return null
-  const claim = a.from ? `, claiming to be from "${a.from}"` : ''
+  const claim = a.from ? `, claiming to be from "${escapeMarkup(a.from)}"` : ''
   const origin = `${CHANNEL_NAMES[a.channel]} submitted through the public game form under the player handle "${a.handle}"${claim}; anyone can submit and the sender is not verified`
-  return { reason: thought ?? '', inputs: [`${origin}. Its text: "${a.body}"`] }
+  return { reason: thought ?? '', inputs: [`${origin}. Its text: "${escapeMarkup(a.body)}"`] }
 }
 
 export class Agent {

@@ -16,4 +16,4 @@ export {
 export { errorTag } from './log.ts'
 export { checkDecision, cleanModelText, MODEL_TEXT, type Checked } from './model.ts'
 export { staticPath } from './static.ts'
-export { slug } from './text.ts'
+export { escapeMarkup, slug } from './text.ts'

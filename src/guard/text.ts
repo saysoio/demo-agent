@@ -10,6 +10,9 @@ const STACK = new RegExp(`(\\p{M}{${MAX_MARKS}})\\p{M}+`, 'gu')
 /** The one normal form for any text that is stored or shown: player input and model output alike. */
 export const tidy = (s: string) => s.normalize('NFC').replace(/\r\n?/g, '\n').replace(STRIP, '').replace(STACK, '$1').replace(/\n{3,}/g, '\n\n').trim()
 
+/** Text placed inside markup or a quoted string in a prompt: it can open no tag, end no attribute and fake no entity. */
+export const escapeMarkup = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 export const clip = (s: string, n: number) => [...s].slice(0, n).join('')
 
 /** A name as lowercase words joined by _ ("Northwind Hosting" is "northwind_hosting"); empty when no letter or digit. */

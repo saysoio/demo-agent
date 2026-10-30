@@ -6,6 +6,7 @@ import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
 import { ANTHROPIC_API, unitName, type Asset, type LlmSettings, type Vendor } from './config.ts'
 import type { Directory } from './directory.ts'
+import { escapeMarkup } from './guard/index.ts'
 import { usageOf, type Usage } from './spend.ts'
 import type { Channel } from './store.ts'
 
@@ -45,10 +46,10 @@ export function systemPrompt(o: { agentName: string; asset: Asset; directory: Di
   ].join('\n')
 }
 
-/** The sender is checked at the door (src/guard/input.ts parseFrom) and holds no double quote; one is swapped anyway so
- *  the attribute cannot end early whatever reaches here. */
+/** The sender is checked at the door (src/guard/input.ts parseFrom); both it and the body are escaped anyway, so whatever
+ *  reaches here cannot end the attribute, close the item or open a tag of its own. */
 export function itemMessage(item: Item): string {
-  return `<inbox_item channel="${item.channel}" from="${item.from.replace(/"/g, "'")}">\n${item.body}\n</inbox_item>`
+  return `<inbox_item channel="${item.channel}" from="${escapeMarkup(item.from)}">\n${escapeMarkup(item.body)}\n</inbox_item>`
 }
 
 export interface HaikuOptions {

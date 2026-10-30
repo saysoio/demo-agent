@@ -19,7 +19,7 @@ export const RULES_FIELDS = [
 ] as const
 
 /** Nested objects get allowlists of their own. */
-export const STATS_FIELDS = ['attempts', 'blocked', 'paid', 'wins', 'pending'] as const
+export const STATS_FIELDS = ['attempts', 'blocked', 'paid', 'wins', 'pending', 'vendorPaid'] as const
 export const VENDOR_FIELDS = ['name', 'address'] as const
 export const LIMIT_FIELDS = ['textChars', 'feedPage'] as const
 export const SDK_FIELDS = ['name', 'version', 'mode'] as const

@@ -143,7 +143,7 @@ test('spend is for the operator: the admin gate guards it and the public pot nev
 
 test('the pot passes only the named fields of its nested objects', async () => {
   const pot = await (await fetch(url + '/api/pot')).json() as any
-  assert.deepEqual(Object.keys(pot.stats), ['attempts', 'blocked', 'paid', 'wins', 'pending'])
+  assert.deepEqual(Object.keys(pot.stats), ['attempts', 'blocked', 'paid', 'wins', 'pending', 'vendorPaid'])
   assert.deepEqual(Object.keys(pot.vendors[0]), ['name', 'address'])
   assert.deepEqual(Object.keys(pot.limits), ['textChars', 'feedPage'])
 })

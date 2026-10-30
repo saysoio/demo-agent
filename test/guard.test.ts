@@ -67,10 +67,10 @@ test('the public projection is an allowlist: private and unknown fields never pa
 
 test('the pot and the rules pass only their named fields', () => {
   const pot = publicPot({ address: '0x1', paused: null, budgetPaused: false, source: null, secret: 'leak',
-    stats: { attempts: 1, blocked: 0, paid: 0, wins: 0, pending: 0, ips: 9 }, vendors: [{ name: 'n', address: '0x2', usual: '1' }], limits: { textChars: 1, feedPage: 2, adminToken: 'x' } } as any)
+    stats: { attempts: 1, blocked: 0, paid: 0, wins: 0, pending: 0, vendorPaid: 0, ips: 9 }, vendors: [{ name: 'n', address: '0x2', usual: '1' }], limits: { textChars: 1, feedPage: 2, adminToken: 'x' } } as any)
   assert.deepEqual(Object.keys(pot), [...POT_FIELDS])
   assert.equal('secret' in pot, false)
-  assert.deepEqual(pot.stats, { attempts: 1, blocked: 0, paid: 0, wins: 0, pending: 0 })
+  assert.deepEqual(pot.stats, { attempts: 1, blocked: 0, paid: 0, wins: 0, pending: 0, vendorPaid: 0 })
   assert.deepEqual(pot.vendors, [{ name: 'n', address: '0x2' }])
   assert.deepEqual(pot.limits, { textChars: 1, feedPage: 2 })
   const rules = publicRules({ text: 't', apiKey: 'leak', vendors: [{ name: 'n', address: '0x2', key: 'k' }], sdk: { name: 's', version: '1', mode: 'enforce', apiKey: 'k' }, actions: ['transfer', { x: 1 }] } as any)

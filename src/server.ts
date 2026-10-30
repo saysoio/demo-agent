@@ -68,7 +68,7 @@ export function makeServer(d: ServerDeps): Server {
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
   // the pot's counts and the tricks are read for everyone at most every few seconds, however many pages poll
-  const stats = new SharedRead(async () => store.stats(), 4_000, d.now, e => d.log?.(`stats read failed: ${errorTag(e)}`))
+  const stats = new SharedRead(async () => store.stats(cfg.vendors.map(v => v.address)), 4_000, d.now, e => d.log?.(`stats read failed: ${errorTag(e)}`))
   const tricks = new SharedRead(async () => ({ items: store.tricks(TRICKS).map(publicTrick) }), 4_000, d.now, e => d.log?.(`tricks read failed: ${errorTag(e)}`))
   const rules = publicRules(rulesView(cfg, d.signed ?? null))
 

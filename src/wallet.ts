@@ -24,7 +24,7 @@ export interface PayResult {
 export interface Payer {
   readonly address: Address
   /** amount in the asset's smallest unit (wei, or USDC's 6 decimals) */
-  pay(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult>
+  pay(to: Address, amount: bigint, ctx: PayContext | null, stop: () => boolean): Promise<PayResult>
   balance(): Promise<bigint>
   /** whether the transaction landed and succeeded; null when it could not be read in time */
   confirmed(hash: Hex): Promise<boolean | null>
@@ -85,7 +85,7 @@ export class SaysoPayer implements Payer {
   private readonly guarded: ReturnType<Oathline['guard']>
   private readonly reader: ReturnType<typeof createPublicClient>
   private queue: Promise<unknown> = Promise.resolve()
-  private ctx: PayContext = { reason: '', inputs: [] }
+  private ctx: PayContext | null = null
   private last: CheckResult | null = null
   /** set when the SDK reports a verified allow ('signed') for the payment in progress; the signer needs it */
   private allowed = false
@@ -103,7 +103,7 @@ export class SaysoPayer implements Payer {
     const oathline = new Oathline({
       apiUrl: cfg.saysoApi, apiKey: cfg.secrets.sayso, chainId: cfg.chainId, mode: 'enforce', signatures: 'refuse',
       fees: feeBounds(cfg.maxFeeGwei, cfg.token),
-      context: () => ({ reason: this.ctx.reason, inputs: this.ctx.inputs }),
+      context: () => (this.ctx ? { reason: this.ctx.reason, inputs: this.ctx.inputs } : undefined),
       onDecision: (result: CheckResult, _tx: unknown, decision: Decision) => this.decided(result, decision),
       // 0.7.0 has no option to skip waiting for the owner's answer to an ask (it polls until the request expires, about
       // 10 minutes, and would hold the payment queue). onWaiting runs just before that wait and its throw leaves gate()
@@ -150,13 +150,13 @@ export class SaysoPayer implements Payer {
   }
 
   /** One payment at a time, so each check sees the wallet as it will be signed. */
-  pay(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
+  pay(to: Address, amount: bigint, ctx: PayContext | null, stop: () => boolean): Promise<PayResult> {
     const run = this.queue.then(() => this.payNow(to, amount, ctx, stop))
     this.queue = run.catch(() => undefined)
     return run
   }
 
-  private async payNow(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
+  private async payNow(to: Address, amount: bigint, ctx: PayContext | null, stop: () => boolean): Promise<PayResult> {
     const t0 = Date.now()
     if (stop()) return { outcome: 'paused', verdict: null, reason: null, rule: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
     this.ctx = ctx; this.last = null; this.allowed = false; this.refusedAfterAllow = null; this.stop = stop
@@ -222,11 +222,11 @@ export class FakePayer implements Payer {
   private bal: bigint
   private readonly vendors: Vendor[]
   private readonly toUnits: (s: string) => bigint
-  readonly sent: Array<{ to: Address; amount: bigint; ctx: PayContext }> = []
+  readonly sent: Array<{ to: Address; amount: bigint; ctx: PayContext | null }> = []
   constructor(vendors: Vendor[], toUnits: (s: string) => bigint, balance: bigint) { this.vendors = vendors; this.toUnits = toUnits; this.bal = balance }
   async balance() { return this.bal }
   async confirmed(_hash: Hex) { return true }
-  async pay(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
+  async pay(to: Address, amount: bigint, ctx: PayContext | null, stop: () => boolean): Promise<PayResult> {
     if (stop()) return { outcome: 'paused', verdict: null, reason: null, rule: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
     const v = this.vendors.find(x => x.address === getAddress(to))
     if (!v) return { outcome: 'blocked', verdict: 'block', reason: 'payee is not in the owner\'s vendor list', rule: 'unknown payee', txHash: null, checkMs: 5, note: null }

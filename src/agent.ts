@@ -20,10 +20,11 @@ const CHANNEL_NAMES: Record<Attempt['channel'], string> = { email: 'an email', i
  *  with where it really came from, set by code from the row's source (a player cannot set it). The box's scheduled vendor
  *  invoices are the company's own bills; everything else came in through the public game form from an unverified sender.
  *  Both are true statements; the item's text is quoted after them so it cannot pass for the label. */
-export function payContext(a: Pick<Attempt, 'source' | 'channel' | 'handle' | 'body'>, thought: string | null): PayContext {
-  const origin = a.source === 'vendor'
-    ? 'A vendor invoice from the company\'s own billing run: issued on a schedule by the operator\'s system for a vendor named in the owner\'s rules, not sent in by anyone outside'
-    : `${CHANNEL_NAMES[a.channel]} submitted through the public game form under the handle "${a.handle}"; anyone can submit and the sender is not verified`
+/** What sayso is told shaped the payment. The box's own scheduled vendor invoices carry no outside input, so none is
+ *  sent and sayso decides them by the owner's rules alone; everything a player submits goes along, labelled as such. */
+export function payContext(a: Pick<Attempt, 'source' | 'channel' | 'handle' | 'body'>, thought: string | null): PayContext | null {
+  if (a.source === 'vendor') return null
+  const origin = `${CHANNEL_NAMES[a.channel]} submitted through the public game form under the handle "${a.handle}"; anyone can submit and the sender is not verified`
   return { reason: thought ?? '', inputs: [`${origin}. Its text: "${a.body}"`] }
 }
 

@@ -36,9 +36,10 @@ open 10050 to those only; otherwise leave it closed or stop it (`systemctl disab
 1. **DNS → Add record:** type `A`, name `game`, IPv4 `72.56.29.190`, Proxy status **Proxied** (orange cloud). No AAAA
    record is needed: Cloudflare serves visitors over IPv6 and reaches the box over IPv4.
 2. **SSL/TLS → Overview:** the zone is already **Full (strict)**. Keep it.
-3. **SSL/TLS → Edge Certificates → Always Use HTTPS: off** (it is off for the zone if sayso's `api` and `sepolia`
-   renew their Let's Encrypt certificates the same way). Caddy proves the name over plain HTTP through Cloudflare
-   (HTTP-01) and redirects everything else to HTTPS itself. With that switch on, the first certificate cannot be issued.
+3. **SSL/TLS → Edge Certificates → Always Use HTTPS:** look at the switch and make sure it is **off**. Caddy proves the
+   name over plain HTTP through Cloudflare (HTTP-01) and redirects everything else to HTTPS itself; with that switch on,
+   the first certificate cannot be issued. After step 3, watch `ssh demo-vps journalctl -u caddy -f` until it says
+   `certificate obtained successfully` for `game.saysoio.com` (a minute or two once the DNS record exists).
 4. **Security → WAF → Rate limiting rules → Create rule:** name `game submit`; when URI Path equals `/api/submit` and
    Request Method equals `POST`; same characteristics: IP; 10 requests per 10 seconds; action Block for 10 seconds
    (the free plan's limits). The app's own limits (30 per IP an hour) still apply behind it.
@@ -49,9 +50,25 @@ Origin Server → Create Certificate for `game.saysoio.com`, 15 years. On the bo
 `chmod 640` both files), add `tls /etc/caddy/origin/cert.pem /etc/caddy/origin/key.pem` inside the `game.saysoio.com`
 block of `/etc/caddy/Caddyfile`, then `systemctl reload caddy`. Browsers never see that certificate; only Cloudflare does.
 
-## 3. Run the setup (Mac → box, as root)
+**Option before real funds, Authenticated Origin Pulls:** the firewall already admits only Cloudflare's ranges, but any
+Cloudflare customer's traffic comes from those ranges too. With SSL/TLS → Origin Server → Authenticated Origin Pulls on
+(zone-wide), Cloudflare shows a client certificate to the box, and Caddy can refuse every connection without it. Save
+Cloudflare's origin-pull CA (linked from that dashboard page) as `/etc/caddy/cloudflare-origin-pull-ca.pem` and add
+inside the `game.saysoio.com` block:
 
-The `deploy-kit` branch must be on GitHub first (you push it; the box clones it in step 4).
+```
+tls {
+	client_auth {
+		mode require_and_verify
+		trust_pool file /etc/caddy/cloudflare-origin-pull-ca.pem
+	}
+}
+```
+
+Turn it on in Cloudflare first, then reload Caddy; the other way round, the site is down in between. It is zone-wide, so
+check that sayso's `api` and `sepolia` origins accept it too (they ignore a client certificate they did not ask for).
+
+## 3. Run the setup (Mac → box, as root)
 
 ```bash
 cd ~/Code/demo-agent
@@ -71,13 +88,42 @@ ssh demo-vps 'nft list table inet demo_host | head -20; iptables -S DOCKER-USER;
 curl -m 5 -sk https://72.56.29.190/ ; echo "exit $? (28, a timeout, is right: only Cloudflare reaches 443)"
 ```
 
+The setup refuses to load the firewall if sshd listens on anything but port 22 (the firewall opens 22 only). It masks
+the stock `nftables.service`, whose `flush ruleset` would wipe Docker's rules; `demo-firewall.service` loads the table
+at boot, and if it ever fails, `demo-firewall-alert.service` writes an emergency line to the journal and to every
+logged-in terminal.
+
+**Upgrades and reboots:** security updates install themselves daily, but a new kernel (or libc) waits for a reboot.
+When `ssh demo-vps cat /var/run/reboot-required` prints something, pause the game (step 10) and `ssh demo-vps reboot`.
+After the reboot the firewall, Docker, the container (`restart: unless-stopped`) and Caddy come back by themselves;
+resume once `/api/health` answers.
+
 Root keeps key-only login, because the `demo` user has no sudo and root does the system upkeep (Caddy, firewall,
 upgrades). To turn root login off anyway: `ssh demo-vps 'bash /root/demo-deploy/server-setup.sh --disable-root-login'`,
 and only after `ssh demo-vps-demo` works.
 
-## 4. Clone the repo (as demo)
+## 4. Get the code onto the box
 
-If the repo stays **private**, use a read-only deploy key (a key that can read this one repo and nothing else):
+**Primary: ship it from the Mac** (the box needs no GitHub access). `git archive` packs the committed files of one ref,
+nothing else: no `.git`, no `.env`, no `data/`. This replaces `~/demo-agent` on the box with the new tree and keeps its
+`.env` (and `outline.env`):
+
+```bash
+cd ~/Code/demo-agent
+REF=main        # deploy-kit until it is merged
+git archive --format=tar "$REF" | ssh demo-vps-demo "set -e
+  rm -rf ~/demo-agent.new && mkdir ~/demo-agent.new && tar -x -C ~/demo-agent.new
+  for f in .env outline.env; do if [ -f ~/demo-agent/\$f ]; then cp -p ~/demo-agent/\$f ~/demo-agent.new/; fi; done
+  rm -rf ~/demo-agent.old; if [ -d ~/demo-agent ]; then mv ~/demo-agent ~/demo-agent.old; fi
+  mv ~/demo-agent.new ~/demo-agent
+  echo $(git rev-parse --short "$REF") > ~/demo-agent/DEPLOYED"
+```
+
+The folder name stays `demo-agent`, so compose's project (and the volume `demo-agent_demo-data`) stays the same.
+`~/demo-agent/DEPLOYED` holds the commit that is on the box; `~/demo-agent.old` is the previous tree.
+
+**Optional: clone on the box.** If the repo is public: `git clone https://github.com/saysoio/demo-agent.git ~/demo-agent`.
+If it stays private, use a read-only deploy key (a key that can read this one repo and nothing else):
 
 ```bash
 ssh demo-vps-demo
@@ -92,10 +138,9 @@ access" unticked. Then, still on the box:
 printf 'Host github.com\n  IdentityFile ~/.ssh/demo-agent-deploy\n  IdentitiesOnly yes\n' >> ~/.ssh/config
 chmod 600 ~/.ssh/config
 git clone git@github.com:saysoio/demo-agent.git ~/demo-agent
-cd ~/demo-agent && git checkout deploy-kit   # until it is merged into main
 ```
 
-If the repo is **public**: `git clone https://github.com/saysoio/demo-agent.git ~/demo-agent`.
+With a clone, updates are `git pull --ff-only` instead of the archive above.
 
 ## 5. Owner setup (on your Mac, never on the box)
 
@@ -106,7 +151,8 @@ If the repo is **public**: `git clone https://github.com/saysoio/demo-agent.git 
 3. Copy that key to the box (step 6 moves it into `.env` and deletes the copy):
 
    ```bash
-   scp data/sayso-api-key demo-vps-demo:sayso-api-key
+   chmod 600 data/sayso-api-key
+   scp -p data/sayso-api-key demo-vps-demo:sayso-api-key
    ```
 
 ## 6. The box's `.env` (as demo, typed by you)
@@ -209,10 +255,12 @@ admin hide '{"id":42}'
 ## 11. Update
 
 ```bash
+# on the box
 cd ~/demo-agent
 admin pause '{"paused":true,"why":"update"}'        # optional; admin() is defined in step 10
 docker tag demo-agent:local demo-agent:previous      # the rollback point
-git pull --ff-only
+# on the Mac: ship the new code (step 4); then on the box
+cd ~/demo-agent
 docker compose up -d --build
 docker compose ps && docker compose logs --tail 20
 docker image prune -f                                # the disk is 14 GB
@@ -245,8 +293,8 @@ docker compose up -d
 ## 13. Rollback
 
 Fast, to the image from before the last update: `docker tag demo-agent:previous demo-agent:local && docker compose up -d --no-build`.
-To a known commit: `git checkout <sha> && docker compose up -d --build`; back with `git checkout <branch>`. If the data
-went wrong too, restore the last backup (step 12).
+To a known commit: ship it from the Mac with `REF=<sha>` (step 4), then `docker compose up -d --build` on the box. If
+the data went wrong too, restore the last backup (step 12).
 
 ## 14. Go-live checklist (real pot)
 

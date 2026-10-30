@@ -44,8 +44,9 @@ Node 24 or newer runs the TypeScript directly; there is no build step.
 
 1. Pick the vendors: wallets **we** control, listed in `DEMO_VENDORS`.
 2. On the owner's Mac, `npm run setup` with the CDP keys and `OWNER_PRIVATE_KEY`. It creates the agent's CDP account,
-   registers it, has sayso compile the rules, shows them, and on "sign" signs the mandate and turns enforce on. The
-   owner key never goes to the box.
+   registers it, has sayso compile the rules, shows them, and on "sign" signs the mandate and turns enforce on. Without
+   a linked Telegram chat sayso refuses its server-side switch; setup notes it and goes on, since the box enforces
+   through the SDK anyway. The owner key never goes to the box.
 3. On the box: its own user, `.env` from `.env.example` with `DEMO_SAYSO_API_KEY` from step 2, `npm start` behind a
    proxy with TLS.
 4. Fund the agent wallet (Sepolia test ETH first; the real pot only after the go/no-go).
@@ -127,7 +128,11 @@ gets its base URL from the box (`api.anthropic.com` unless `DEMO_LLM_BASE_URL` i
 2. **A saysoio release with fee bounds.** 0.6.3 sends through viem's own `sendTransaction` and does not compare the
    signed bytes with the checked transaction. The box sets its own gas limit and fee ceiling (`DEMO_MAX_FEE_GWEI`) in the
    meantime.
-3. **Mandate strictness.** Setup accepts `strictness: normal`. For a real pot, decide whether to require `strict`.
+3. **Mandate strictness: decided, `normal`.** The published rules avoid the words sayso's compiler reads as `strict`
+   (only, never, nothing else) or `lenient` (roughly, mostly), and setup refuses anything but `strictness: normal`.
+   They state a per-payment, daily and weekly cap (`DEMO_WEEKLY_CAP`, three times `DEMO_DAILY_CAP` by default). Under
+   `normal` a call sayso cannot decode is an ask, and once a Telegram chat is linked, a small payment to a new payee
+   becomes an ask to the owner instead of a block: whoever is on duty must decline every ask a player triggered.
 4. Set `DEMO_MAX_PER_PAYMENT` on the box to the signed cap, in the asset's unit (required on base): an allow above it
    pauses the game.
 5. Verify the USDC address with `cast code` and fund only after the go/no-go.

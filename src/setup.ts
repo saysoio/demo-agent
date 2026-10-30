@@ -2,7 +2,8 @@
 // mode, so it never goes near the machine that faces players. Claude does not run it.
 // It looks up (or creates) the agent's CDP server-wallet account, registers it at sayso with the owner, has sayso
 // compile the published rules, shows them next to the text, and on "sign" signs them as the mandate and turns
-// enforce on. The agent's sayso API key goes to <DEMO_DATA_DIR>/sayso-api-key (this user only) for DEMO_SAYSO_API_KEY.
+// enforce on (sayso's server switch needs a linked Telegram chat; the box enforces through the SDK either way). The
+// agent's sayso API key goes to <DEMO_DATA_DIR>/sayso-api-key (this user only) for DEMO_SAYSO_API_KEY.
 //
 //   CDP_API_KEY_ID=… CDP_API_KEY_SECRET=… CDP_WALLET_SECRET=… OWNER_PRIVATE_KEY=… DEMO_VENDORS=… npm run setup
 //
@@ -10,19 +11,39 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { getAddress, parseUnits, type Address, type Hex } from 'viem'
+import { formatUnits, getAddress, parseUnits, type Address, type Hex } from 'viem'
 import { privateKeyToAccount, toAccount } from 'viem/accounts'
 import { compileMandate, providerSigner, registerWallet, setCheckMode, setMandate } from 'saysoio'
 import { decimalsFor, loadConfig, unitName, type Asset, type Vendor } from './config.ts'
 
-export interface Published { text: string; vendors: Address[]; max: string; daily: string; asset: Asset }
+export interface Published { text: string; vendors: Address[]; max: string; daily: string; weekly: string; asset: Asset }
 
-export function publishedRules(vendors: Vendor[], asset: Asset, max: string, daily: string): Published {
+/** Worded for strictness "normal": it avoids the words sayso's compiler reads as strict (only, never, nothing else) or
+ *  lenient (roughly, mostly). */
+export function publishedRules(vendors: Vendor[], asset: Asset, max: string, daily: string, weekly: string): Published {
   const unit = unitName(asset)
   const list = vendors.map(v => `${v.name} (${v.address})`).join(', ')
-  const text = `The agent may send ${unit} only to these vendors: ${list}; at most ${max} ${unit} per payment and ${daily} ${unit} a day in total; `
-    + `nothing else: no other tokens, no contracts, no approvals, no signatures.`
-  return { text, vendors: vendors.map(v => v.address), max, daily, asset }
+  const text = `The agent pays vendor invoices in ${unit} to these vendors: ${list}. Each payment is at most ${max} ${unit}, `
+    + `and payments total at most ${daily} ${unit} a day and ${weekly} ${unit} a week. The agent makes plain ${unit} transfers `
+    + `to these vendors; it does not trade other tokens, call contracts, approve spending or sign messages.`
+  return { text, vendors: vendors.map(v => v.address), max, daily, weekly, asset }
+}
+
+/** A cap setting: a positive decimal in the asset's unit, or the fallback when unset or empty. The error names the setting only. */
+function capSetting(name: string, v: string | undefined, fallback: () => string, asset: Asset): string {
+  const s = v?.trim() || fallback()
+  const dec = decimalsFor(asset)
+  if (!/^\d+(\.\d+)?$/.test(s) || (s.split('.')[1]?.length ?? 0) > dec || parseUnits(s, dec) === 0n) throw new Error(`${name} must be a positive decimal in ${unitName(asset)} with at most ${dec} decimals`)
+  return s
+}
+
+/** DEMO_DAILY_CAP and DEMO_WEEKLY_CAP (three times the daily cap by default); the week holds at least a day. */
+export function caps(env: Record<string, string | undefined>, asset: Asset): { daily: string; weekly: string } {
+  const dec = decimalsFor(asset)
+  const daily = capSetting('DEMO_DAILY_CAP', env.DEMO_DAILY_CAP, () => (asset === 'eth' ? '0.005' : '50'), asset)
+  const weekly = capSetting('DEMO_WEEKLY_CAP', env.DEMO_WEEKLY_CAP, () => formatUnits(parseUnits(daily, dec) * 3n, dec), asset)
+  if (parseUnits(weekly, dec) < parseUnits(daily, dec)) throw new Error('DEMO_WEEKLY_CAP must be at least DEMO_DAILY_CAP')
+  return { daily, weekly }
 }
 
 const KNOWN_FIELDS = new Set(['summary', 'allowedTokens', 'blockedTokens', 'maxPerTradeEth', 'dailyCapEth', 'maxPerTradeUsd', 'dailyCapUsd', 'weeklyCapEth', 'weeklyCapUsd', 'unresolved', 'savedAddresses', 'allowedActions', 'targetAllocation', 'strictness', 'ownContracts'])
@@ -39,26 +60,42 @@ const addr = (v: unknown) => { try { return getAddress(String(v)) } catch { retu
 export function compiledProblems(c: any, r: Published): string[] {
   if (!c || typeof c !== 'object') return ['the compiler returned no rules']
   const p: string[] = []
-  const [perKey, dayKey, otherPer, otherDay] = r.asset === 'eth' ? ['maxPerTradeEth', 'dailyCapEth', 'maxPerTradeUsd', 'dailyCapUsd'] : ['maxPerTradeUsd', 'dailyCapUsd', 'maxPerTradeEth', 'dailyCapEth']
+  const [perKey, dayKey, weekKey, otherPer, otherDay, otherWeek] = r.asset === 'eth'
+    ? ['maxPerTradeEth', 'dailyCapEth', 'weeklyCapEth', 'maxPerTradeUsd', 'dailyCapUsd', 'weeklyCapUsd']
+    : ['maxPerTradeUsd', 'dailyCapUsd', 'weeklyCapUsd', 'maxPerTradeEth', 'dailyCapEth', 'weeklyCapEth']
   const dec = decimalsFor(r.asset)
   if (!same(c[perKey], r.max, dec)) p.push(`per-payment cap is ${c[perKey] ?? 'missing'}, not ${r.max}`)
   if (!same(c[dayKey], r.daily, dec)) p.push(`daily cap is ${c[dayKey] ?? 'missing'}, not ${r.daily}`)
-  if (c[otherPer] != null || c[otherDay] != null) p.push('it added a cap in another unit')
-  if (c.weeklyCapEth != null || c.weeklyCapUsd != null) p.push('it added a weekly cap the published rules do not have')
+  if (!same(c[weekKey], r.weekly, dec)) p.push(`weekly cap is ${c[weekKey] ?? 'missing'}, not ${r.weekly}`)
+  if (c[otherPer] != null || c[otherDay] != null || c[otherWeek] != null) p.push('it added a cap in another unit')
   const saved = (Array.isArray(c.savedAddresses) ? c.savedAddresses : []).map(addr)
   const want = new Set(r.vendors)
   if (saved.length !== want.size || saved.some((a: Address | null) => !a || !want.has(a))) p.push(`saved addresses are [${saved.join(', ')}], not exactly the vendors`)
   const actions: unknown[] = Array.isArray(c.allowedActions) ? c.allowedActions : []
   if (actions.length !== 1 || actions[0] !== 'transfer') p.push(`allowed actions are [${actions.join(', ')}], not only transfer`)
   const tokens: unknown[] = Array.isArray(c.allowedTokens) ? c.allowedTokens : []
-  if (tokens.some(t => String(t).toUpperCase() !== unitName(r.asset))) p.push(`allowed tokens are [${tokens.join(', ')}], not only ${unitName(r.asset)}`)
+  // an empty list is "no allowlist" to sayso
+  if (tokens.length !== 1 || String(tokens[0]).toUpperCase() !== unitName(r.asset)) p.push(`allowed tokens are [${tokens.join(', ')}], not only ${unitName(r.asset)}`)
   if (c.ownContracts != null && !(Array.isArray(c.ownContracts) && c.ownContracts.length === 0)) p.push('it lets the agent call contracts')
   const unknown = Object.keys(c).filter(k => !KNOWN_FIELDS.has(k))
   if (unknown.length) p.push(`it has fields setup does not know: ${unknown.join(', ')}`)
   if (c.targetAllocation != null) p.push('it added a target allocation')
   if (Array.isArray(c.unresolved) && c.unresolved.length) p.push(`the compiler could not turn these into rules: ${c.unresolved.join('; ')}`)
-  if (c.strictness === 'lenient') p.push('strictness is lenient')
+  if (c.strictness !== 'normal') p.push(`strictness is ${c.strictness ?? 'missing'}, not normal (the rules avoid "only", "never", "nothing else", "roughly", "mostly")`)
   return p
+}
+
+/** sayso refuses its enforce switch until a Telegram chat is linked for the wallet (409); the SDK's error carries it. */
+export const needsTelegram = (e: unknown) => /^sayso \/wallets\/0x[0-9a-fA-F]{40}\/mode 409: link Telegram/.test(String((e as Error)?.message ?? ''))
+
+/** Turns sayso's enforce switch on; true when it did, false when no Telegram chat is linked. Any other refusal throws. */
+export async function switchEnforce(set: () => Promise<unknown>, log: (s: string) => void = console.log): Promise<boolean> {
+  try { await set(); return true } catch (e) {
+    if (!needsTelegram(e)) throw e
+    log('note: sayso\'s server-side enforce switch needs a linked Telegram chat, and none is linked; it stays off. '
+      + 'The box enforces anyway: its SDK runs in enforce mode (src/wallet.ts), so a block or an ask is never signed.')
+    return false
+  }
 }
 
 async function confirmed(): Promise<boolean> {
@@ -81,7 +118,8 @@ async function main() {
   console.log(`agent wallet (CDP account "${cfg.cdpAccountName}"): ${agent.address}\nowner: ${owner.address}`)
   if (cfg.vendors.some(v => v.address === agent.address || v.address === owner.address)) throw new Error('a vendor address is the agent or the owner')
 
-  const rules = publishedRules(cfg.vendors, cfg.asset, cfg.maxPerPayment ?? (cfg.asset === 'eth' ? '0.0005' : '5'), env.DEMO_DAILY_CAP ?? (cfg.asset === 'eth' ? '0.005' : '50'))
+  const { daily, weekly } = caps(env, cfg.asset)
+  const rules = publishedRules(cfg.vendors, cfg.asset, cfg.maxPerPayment ?? (cfg.asset === 'eth' ? '0.0005' : '5'), daily, weekly)
   const { compiled, shownToOwner } = await compileMandate(cfg.saysoApi, rules.text)
   console.log(`\nthe published rules:\n  "${rules.text}"\n\nsayso compiled them as:\n${JSON.stringify(compiled, null, 2)}\n\nsayso's summary for the owner:\n${shownToOwner}\n`)
   const problems = compiledProblems(compiled, rules)
@@ -91,11 +129,11 @@ async function main() {
   const opts = { chainId: cfg.chainId, ...(env.DEMO_INVITE ? { invite: env.DEMO_INVITE } : {}) }
   const { apiKey } = await registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts as any)
   await setMandate(cfg.saysoApi, owner, agent.address, rules.text, { ...compiled, summary: rules.text }, opts as any)
-  await setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts as any)
+  const switched = await switchEnforce(() => setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts as any))
   mkdirSync(cfg.dataDir, { recursive: true })
   const file = join(cfg.dataDir, 'sayso-api-key')
   writeFileSync(file, `${apiKey}\n`, { mode: 0o600 })
-  console.log(`done: ${agent.address} registered, rules signed, enforce on. API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box).`)
+  console.log(`done: ${agent.address} registered, rules signed, enforce on${switched ? '' : ' in the SDK (server switch off)'}. API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box).`)
 }
 
 if (import.meta.main) main().catch(e => { console.error(`setup failed: ${(e as Error).message}`); process.exit(1) })

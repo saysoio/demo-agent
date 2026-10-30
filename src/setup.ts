@@ -18,8 +18,7 @@ import { decimalsFor, loadConfig, unitName, type Asset, type Vendor } from './co
 
 export interface Published { text: string; vendors: Address[]; max: string; daily: string; weekly: string; asset: Asset }
 
-/** Worded for strictness "normal": it avoids the words sayso's compiler reads as strict (only, never, nothing else) or
- *  lenient (roughly, mostly). */
+/** sayso's compiler may read the closing sentence as strict; setup accepts strict or normal, never lenient. */
 export function publishedRules(vendors: Vendor[], asset: Asset, max: string, daily: string, weekly: string): Published {
   const unit = unitName(asset)
   const list = vendors.map(v => `${v.name} (${v.address})`).join(', ')
@@ -73,15 +72,16 @@ export function compiledProblems(c: any, r: Published): string[] {
   if (saved.length !== want.size || saved.some((a: Address | null) => !a || !want.has(a))) p.push(`saved addresses are [${saved.join(', ')}], not exactly the vendors`)
   const actions: unknown[] = Array.isArray(c.allowedActions) ? c.allowedActions : []
   if (actions.length !== 1 || actions[0] !== 'transfer') p.push(`allowed actions are [${actions.join(', ')}], not only transfer`)
-  const tokens: unknown[] = Array.isArray(c.allowedTokens) ? c.allowedTokens : []
-  // an empty list is "no allowlist" to sayso
-  if (tokens.length !== 1 || String(tokens[0]).toUpperCase() !== unitName(r.asset)) p.push(`allowed tokens are [${tokens.join(', ')}], not only ${unitName(r.asset)}`)
+  // allowedTokens lists what the agent may trade into; with transfer the only action, none or the asset itself is fine
+  const tokens = (Array.isArray(c.allowedTokens) ? c.allowedTokens : []).map((t: unknown) => String(t).toUpperCase())
+  const asset = r.asset === 'eth' ? ['ETH', 'WETH'] : [unitName(r.asset)]
+  if (tokens.some((t: string) => !asset.includes(t))) p.push(`allowed tokens are [${tokens.join(', ')}], more than ${asset.join(' and ')}`)
   if (c.ownContracts != null && !(Array.isArray(c.ownContracts) && c.ownContracts.length === 0)) p.push('it lets the agent call contracts')
   const unknown = Object.keys(c).filter(k => !KNOWN_FIELDS.has(k))
   if (unknown.length) p.push(`it has fields setup does not know: ${unknown.join(', ')}`)
   if (c.targetAllocation != null) p.push('it added a target allocation')
   if (Array.isArray(c.unresolved) && c.unresolved.length) p.push(`the compiler could not turn these into rules: ${c.unresolved.join('; ')}`)
-  if (c.strictness !== 'normal') p.push(`strictness is ${c.strictness ?? 'missing'}, not normal (the rules avoid "only", "never", "nothing else", "roughly", "mostly")`)
+  if (c.strictness !== 'strict' && c.strictness !== 'normal') p.push(`strictness is ${c.strictness ?? 'missing'}, not strict or normal`)
   return p
 }
 

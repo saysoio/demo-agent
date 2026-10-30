@@ -135,11 +135,11 @@ gets its base URL from the box (`api.anthropic.com` unless `DEMO_LLM_BASE_URL` i
    x the ceiling, at most 60 such fees an hour) and keeps its own gas limit and per-gas ceiling, checked before sayso is
    asked. 0.7.0 was published on 31 Oct; its npm integrity equals the reviewed release tarball
    (`sha512-vut6m9iS…Xm5i1BZ6tbe+A==`), and the lockfile pins it.
-3. **Mandate strictness: decided, `normal`.** The published rules avoid the words sayso's compiler reads as `strict`
-   (only, never, nothing else) or `lenient` (roughly, mostly), and setup refuses anything but `strictness: normal`.
-   They state a per-payment, daily and weekly cap (`DEMO_WEEKLY_CAP`, three times `DEMO_DAILY_CAP` by default). Under
-   `normal` a call sayso cannot decode is an ask, and once a Telegram chat is linked, a small payment to a new payee
-   becomes an ask to the owner instead of a block: whoever is on duty must decline every ask a player triggered.
+3. **Mandate strictness: decided, `strict` (31 Oct).** sayso's compiler reads the rules' closing sentence as `strict`,
+   and for a wallet holding a prize that is the safer setting: a tighter judge, unreadable calls blocked, and no
+   new-payee ask. Setup accepts `strict` or `normal`, never `lenient`. The rules state a per-payment, daily and weekly cap
+   (`DEMO_WEEKLY_CAP`, three times `DEMO_DAILY_CAP` by default). The compiler's token list names what the agent may
+   trade into, so with `transfer` the only action it may be empty or the asset itself.
 4. Set `DEMO_MAX_PER_PAYMENT` on the box to the signed cap, in the asset's unit (required on base): an allow above it
    pauses the game.
 5. Verify the USDC address with `cast code` and fund only after the go/no-go.

@@ -11,39 +11,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { formatUnits, getAddress, parseUnits, type Address, type Hex } from 'viem'
+import { getAddress, parseUnits, type Address, type Hex } from 'viem'
 import { privateKeyToAccount, toAccount } from 'viem/accounts'
 import { compileMandate, providerSigner, registerWallet, setCheckMode, setMandate, type CallOptions } from 'saysoio'
-import { decimalsFor, loadConfig, unitName, type Asset, type Vendor } from './config.ts'
+import { decimalsFor, loadConfig, unitName } from './config.ts'
+import { perPaymentCap, publishedRules, type Published } from './rules.ts'
 
-export interface Published { text: string; vendors: Address[]; max: string; daily: string; weekly: string; asset: Asset }
-
-/** sayso's compiler may read the closing sentence as strict; setup accepts strict or normal, never lenient. */
-export function publishedRules(vendors: Vendor[], asset: Asset, max: string, daily: string, weekly: string): Published {
-  const unit = unitName(asset)
-  const list = vendors.map(v => `${v.name} (${v.address})`).join(', ')
-  const text = `The agent pays vendor invoices in ${unit} to these vendors: ${list}. Each payment is at most ${max} ${unit}, `
-    + `and payments total at most ${daily} ${unit} a day and ${weekly} ${unit} a week. The agent makes plain ${unit} transfers `
-    + `to these vendors; it does not trade other tokens, call contracts, approve spending or sign messages.`
-  return { text, vendors: vendors.map(v => v.address), max, daily, weekly, asset }
-}
-
-/** A cap setting: a positive decimal in the asset's unit, or the fallback when unset or empty. The error names the setting only. */
-function capSetting(name: string, v: string | undefined, fallback: () => string, asset: Asset): string {
-  const s = v?.trim() || fallback()
-  const dec = decimalsFor(asset)
-  if (!/^\d+(\.\d+)?$/.test(s) || (s.split('.')[1]?.length ?? 0) > dec || parseUnits(s, dec) === 0n) throw new Error(`${name} must be a positive decimal in ${unitName(asset)} with at most ${dec} decimals`)
-  return s
-}
-
-/** DEMO_DAILY_CAP and DEMO_WEEKLY_CAP (three times the daily cap by default); the week holds at least a day. */
-export function caps(env: Record<string, string | undefined>, asset: Asset): { daily: string; weekly: string } {
-  const dec = decimalsFor(asset)
-  const daily = capSetting('DEMO_DAILY_CAP', env.DEMO_DAILY_CAP, () => (asset === 'eth' ? '0.005' : '50'), asset)
-  const weekly = capSetting('DEMO_WEEKLY_CAP', env.DEMO_WEEKLY_CAP, () => formatUnits(parseUnits(daily, dec) * 3n, dec), asset)
-  if (parseUnits(weekly, dec) < parseUnits(daily, dec)) throw new Error('DEMO_WEEKLY_CAP must be at least DEMO_DAILY_CAP')
-  return { daily, weekly }
-}
+export { caps } from './config.ts'
+export { publishedRules, type Published } from './rules.ts'
 
 const KNOWN_FIELDS = new Set(['summary', 'allowedTokens', 'blockedTokens', 'maxPerTradeEth', 'dailyCapEth', 'maxPerTradeUsd', 'dailyCapUsd', 'weeklyCapEth', 'weeklyCapUsd', 'unresolved', 'savedAddresses', 'allowedActions', 'targetAllocation', 'strictness', 'ownContracts'])
 /** Exact, in the asset's smallest unit: a number is read by its shortest decimal form; anything finer never matches. */
@@ -119,8 +94,7 @@ async function main() {
   console.log(`agent wallet (CDP account "${cfg.cdpAccountName}"): ${agent.address}\nowner: ${owner.address}`)
   if (cfg.vendors.some(v => v.address === agent.address || v.address === owner.address)) throw new Error('a vendor address is the agent or the owner')
 
-  const { daily, weekly } = caps(env, cfg.asset)
-  const rules = publishedRules(cfg.vendors, cfg.asset, cfg.maxPerPayment ?? (cfg.asset === 'eth' ? '0.0005' : '5'), daily, weekly)
+  const rules = publishedRules(cfg.vendors, cfg.asset, perPaymentCap(cfg), cfg.caps.daily, cfg.caps.weekly)
   const { compiled, shownToOwner } = await compileMandate(cfg.saysoApi, rules.text)
   console.log(`\nthe published rules:\n  "${rules.text}"\n\nsayso compiled them as:\n${JSON.stringify(compiled, null, 2)}\n\nsayso's summary for the owner:\n${shownToOwner}\n`)
   const problems = compiledProblems(compiled, rules)

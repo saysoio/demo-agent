@@ -2,7 +2,9 @@
 // sees, containment of model output and of sayso's reason, the admin gate and what logs may say. server.ts, agent.ts,
 // wallet.ts and main.ts call into this and hold no checks of their own.
 export { AdminGate, tokenOk, type AdminRefusal } from './admin.ts'
-export { PUBLIC_FIELDS, publicAttempt, type PublicAttempt } from './expose.ts'
+export {
+  excerpt, POT_FIELDS, PUBLIC_FIELDS, publicAttempt, publicPot, publicRules, publicTrick, RULES_FIELDS, TRICK_EXCERPT, TRICK_FIELDS, type PublicAttempt,
+} from './expose.ts'
 export {
   BodyRefused, boundedInt, cleanHandle, cleanText, FEED_PAGE, MAX_BODY, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseFeedQuery,
   parseSubmit, readJson, vendorHandles, type AdminHide, type AdminPause, type FeedQuery, type Parsed, type Submit,

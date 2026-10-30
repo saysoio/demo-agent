@@ -70,6 +70,23 @@ test('the pot names the explorer and the page limits', async () => {
   assert.deepEqual(pot.limits, { textChars: 600, feedPage: 50 })
 })
 
+test('the rules name the vendors, the three caps, the SDK and the check server, and are cacheable', async () => {
+  const r = await fetch(url + '/api/rules')
+  assert.equal(r.status, 200)
+  assert.match(r.headers.get('cache-control')!, /max-age=300/)
+  const rules = await r.json() as any
+  assert.equal(rules.source, 'published rules')
+  assert.deepEqual(rules.vendors.map((v: any) => v.address), cfg.vendors.map(v => v.address))
+  assert.deepEqual([rules.perPayment, rules.daily, rules.weekly], ['0.0005', '0.005', '0.015'])
+  assert.deepEqual(rules.actions, ['transfer'])
+  assert.equal(rules.strictness, 'strict')
+  assert.deepEqual(rules.sdk, { name: 'saysoio', version: '0.7.0', mode: 'enforce' })
+  assert.equal(rules.checkServer, 'https://sepolia.saysoio.com')
+  assert.equal(rules.signedVerdicts, true)
+  assert.ok(rules.text.includes(cfg.vendors[0].address))
+  assert.doesNotMatch(JSON.stringify(rules), /dev-admin|apiKey|secret/i)
+})
+
 test('admin calls need the token; pause stops submissions', async () => {
   assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: `Bearer ${ADMIN}`, 'x-forwarded-for': '1.2.3.4' })).status, 404)
   assert.equal((await post('/api/submit', { handle: 'northwind_ops', channel: 'email', text: 'hi' })).status, 400)

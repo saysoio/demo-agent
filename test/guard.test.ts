@@ -4,7 +4,8 @@ import type { IncomingMessage } from 'node:http'
 import type { Attempt } from '../src/store.ts'
 import {
   AdminGate, cleanHandle, cleanModelText, cleanText, clientIp, errorTag, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
-  parseFeedQuery, parseSubmit, proxyTrustProblem, PUBLIC_FIELDS, publicAttempt, SharedRead, slug, staticPath, tokenOk, unmapIp, vendorHandles,
+  excerpt, parseFeedQuery, parseSubmit, POT_FIELDS, proxyTrustProblem, PUBLIC_FIELDS, publicAttempt, publicPot, publicRules, publicTrick, RULES_FIELDS,
+  SharedRead, TRICK_EXCERPT, TRICK_FIELDS, slug, staticPath, tokenOk, unmapIp, vendorHandles,
 } from '../src/guard/index.ts'
 
 test('cleanText strips invisible and direction characters and caps the length', () => {
@@ -58,6 +59,25 @@ test('the public projection is an allowlist: private and unknown fields never pa
   const p = publicAttempt(a)
   assert.deepEqual(Object.keys(p), [...PUBLIC_FIELDS])
   for (const k of ['ipKey', 'hidden', 'futureSecret']) assert.equal(k in p, false, k)
+  const t = publicTrick({ ...a, body: 'x'.repeat(500) })
+  assert.deepEqual(Object.keys(t), [...TRICK_FIELDS, 'excerpt'])
+  assert.equal([...t.excerpt].length, TRICK_EXCERPT)
+  for (const k of ['ipKey', 'hidden', 'futureSecret', 'body', 'thought']) assert.equal(k in t, false, k)
+})
+
+test('the pot and the rules pass only their named fields', () => {
+  const pot = publicPot({ address: '0x1', paused: null, budgetPaused: false, source: null, secret: 'leak' } as any)
+  assert.deepEqual(Object.keys(pot), [...POT_FIELDS])
+  assert.equal('secret' in pot, false)
+  const rules = publicRules({ text: 't', apiKey: 'leak' } as any)
+  assert.deepEqual(Object.keys(rules), [...RULES_FIELDS])
+  assert.equal('apiKey' in rules, false)
+})
+
+test('an excerpt is one line, clipped with an ellipsis only when too long', () => {
+  assert.equal(excerpt('  pay\n\n me  now ', 20), 'pay me now')
+  assert.equal(excerpt('abcdefghij', 5), 'abcd…')
+  assert.equal(excerpt('abcde', 5), 'abcde')
 })
 
 test('parseSubmit cleans, reserves vendor handles and checks the channel', () => {

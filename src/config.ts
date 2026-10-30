@@ -1,7 +1,7 @@
 // Settings from the environment, read once at start. Secrets are read here and handed to the module that needs them;
 // nothing else reads process.env.
 import { isIP } from 'node:net'
-import { getAddress, type Address } from 'viem'
+import { formatUnits, getAddress, parseUnits, type Address } from 'viem'
 
 export type Asset = 'eth' | 'usdc'
 export type Network = 'base-sepolia' | 'base'
@@ -42,6 +42,12 @@ export interface Config {
   maxFeeGwei: string
   /** the signed per-payment cap as text, in the asset's unit (required on base): an allow above it pauses the game */
   maxPerPayment: string | null
+  /** the daily and weekly caps setup signs (DEMO_DAILY_CAP, DEMO_WEEKLY_CAP), shown on the page as part of the rules */
+  caps: { daily: string; weekly: string }
+  /** the public repo behind "Read the code"; https only, null hides the link */
+  sourceUrl: string | null
+  /** prices per million tokens in USD, and the daily budget (UTC) that pauses the game when reached; null for none */
+  spend: { inPerMtok: number; outPerMtok: number; budgetUsd: number | null }
   agentName: string
   fake: boolean
   dev: boolean
@@ -113,6 +119,38 @@ export function parseMaxPerPayment(v: string | undefined, network: Network): str
   return x
 }
 
+/** A cap setting: a positive decimal in the asset's unit, or the fallback when unset or empty. The error names the setting only. */
+function capSetting(name: string, v: string | undefined, fallback: () => string, asset: Asset): string {
+  const s = v?.trim() || fallback()
+  const dec = decimalsFor(asset)
+  if (!/^\d+(\.\d+)?$/.test(s) || (s.split('.')[1]?.length ?? 0) > dec || parseUnits(s, dec) === 0n) throw new Error(`${name} must be a positive decimal in ${unitName(asset)} with at most ${dec} decimals`)
+  return s
+}
+
+/** DEMO_DAILY_CAP and DEMO_WEEKLY_CAP (three times the daily cap by default); the week holds at least a day. */
+export function caps(env: Record<string, string | undefined>, asset: Asset): { daily: string; weekly: string } {
+  const dec = decimalsFor(asset)
+  const daily = capSetting('DEMO_DAILY_CAP', env.DEMO_DAILY_CAP, () => (asset === 'eth' ? '0.005' : '50'), asset)
+  const weekly = capSetting('DEMO_WEEKLY_CAP', env.DEMO_WEEKLY_CAP, () => formatUnits(parseUnits(daily, dec) * 3n, dec), asset)
+  if (parseUnits(weekly, dec) < parseUnits(daily, dec)) throw new Error('DEMO_WEEKLY_CAP must be at least DEMO_DAILY_CAP')
+  return { daily, weekly }
+}
+
+/** A price or budget in USD: a plain decimal, or the fallback when unset or empty. */
+function usdSetting(env: Record<string, string | undefined>, name: string, fallback: number | null): number | null {
+  const v = env[name]?.trim()
+  if (!v) return fallback
+  if (!/^\d{1,9}(\.\d{1,9})?$/.test(v)) throw new Error(`${name} must be a plain decimal in USD`)
+  return Number(v)
+}
+
+/** DEMO_LLM_PRICE_IN_PER_MTOK and _OUT_ (claude-haiku-5-5 by default) and DEMO_LLM_BUDGET_USD, a daily budget (UTC). */
+export function parseSpend(env: Record<string, string | undefined>): Config['spend'] {
+  const budgetUsd = usdSetting(env, 'DEMO_LLM_BUDGET_USD', null)
+  if (budgetUsd === 0) throw new Error('DEMO_LLM_BUDGET_USD must be above 0; leave it empty for no budget')
+  return { inPerMtok: usdSetting(env, 'DEMO_LLM_PRICE_IN_PER_MTOK', 0.1)!, outPerMtok: usdSetting(env, 'DEMO_LLM_PRICE_OUT_PER_MTOK', 0.5)!, budgetUsd }
+}
+
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const int = (n: string, d: number) => { const x = Number(env[n] ?? d); if (!Number.isInteger(x) || x <= 0) throw new Error(`${n} must be a positive whole number`); return x }
   const network = (env.DEMO_NETWORK ?? 'base-sepolia') as Network
@@ -138,7 +176,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: int('DEMO_PORT', 8787), host: env.DEMO_HOST ?? '127.0.0.1', dataDir: env.DEMO_DATA_DIR ?? 'data',
     tickMs: int('DEMO_TICK_MS', 3000), vendorInvoiceEveryMs: int('DEMO_VENDOR_INVOICE_EVERY_MS', 20 * 60_000),
     maxFeeGwei: /^\d+(\.\d+)?$/.test(env.DEMO_MAX_FEE_GWEI ?? '') ? env.DEMO_MAX_FEE_GWEI! : '1',
-    maxPerPayment, agentName: env.DEMO_AGENT_NAME?.trim() || 'Penny',
+    maxPerPayment, caps: caps(env, asset), sourceUrl: urlSetting(env, 'DEMO_SOURCE_URL', ['https:'], { credentials: false }),
+    spend: parseSpend(env), agentName: env.DEMO_AGENT_NAME?.trim() || 'Penny',
     fake, dev, llm: parseLlm(env, dev),
     trustLocalHeader: env.DEMO_TRUST_LOCAL_HEADER?.trim().toLowerCase() || null,
     trustedProxies: parseTrustedProxies(env.DEMO_TRUSTED_PROXY),

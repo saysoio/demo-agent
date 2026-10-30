@@ -1,6 +1,7 @@
-// What the public may see of an attempt. An allowlist, not a denylist: a column added to the store stays private until
-// it is named here. ipKey and hidden never are.
+// What the public may see: of an attempt, of the pot, of the rules and of a stopped trick. Allowlists, not denylists:
+// a column added to the store or a field added to a view stays private until it is named here. ipKey and hidden never are.
 import type { Attempt } from '../store.ts'
+import { clip } from './text.ts'
 
 export const PUBLIC_FIELDS = [
   'id', 'createdAt', 'source', 'handle', 'channel', 'body', 'status', 'action', 'toAddr', 'amount', 'memo', 'thought',
@@ -9,8 +10,32 @@ export const PUBLIC_FIELDS = [
 
 export type PublicAttempt = Pick<Attempt, typeof PUBLIC_FIELDS[number]>
 
-export function publicAttempt(a: Attempt): PublicAttempt {
-  const out: Record<string, unknown> = {}
-  for (const k of PUBLIC_FIELDS) out[k] = a[k]
-  return out as PublicAttempt
+export const POT_FIELDS = [
+  'address', 'balance', 'unit', 'network', 'chainId', 'explorerBase', 'paused', 'budgetPaused', 'queued', 'stats', 'vendors', 'limits', 'source',
+] as const
+
+export const RULES_FIELDS = [
+  'source', 'text', 'unit', 'network', 'vendors', 'perPayment', 'daily', 'weekly', 'actions', 'strictness', 'sdk', 'checkServer', 'signedVerdicts',
+] as const
+
+/** A stopped trick shows the player text as a short excerpt, never in full. */
+export const TRICK_FIELDS = ['id', 'createdAt', 'handle', 'channel', 'toAddr', 'amount', 'rule', 'reason'] as const satisfies readonly (keyof Attempt)[]
+export const TRICK_EXCERPT = 140
+
+function pick<K extends string>(from: Partial<Record<K, unknown>>, fields: readonly K[]): Record<K, unknown> {
+  const out = {} as Record<K, unknown>
+  for (const k of fields) out[k] = from[k]
+  return out
 }
+
+export const publicAttempt = (a: Attempt): PublicAttempt => pick(a, PUBLIC_FIELDS) as PublicAttempt
+export const publicPot = (p: Partial<Record<typeof POT_FIELDS[number], unknown>>) => pick(p, POT_FIELDS)
+export const publicRules = (r: Partial<Record<typeof RULES_FIELDS[number], unknown>>) => pick(r, RULES_FIELDS)
+
+/** Text on one line, clipped to n characters with an ellipsis. */
+export function excerpt(s: string, n: number): string {
+  const one = s.replace(/\s+/g, ' ').trim()
+  return [...one].length > n ? `${clip(one, n - 1).trimEnd()}…` : one
+}
+
+export const publicTrick = (a: Attempt) => ({ ...pick(a, TRICK_FIELDS), excerpt: excerpt(a.body, TRICK_EXCERPT) })

@@ -65,6 +65,16 @@ async function proxyDispatcher(proxy: string | null): Promise<Dispatcher | undef
   return new ProxyAgent(proxy)
 }
 
+// the schema only: the helper's parse function is not sent, and the answer is checked by readDecision below
+const { type, schema } = zodOutputFormat(Decision)
+const FORMAT = { type, schema }
+
+/** The decision in the answer's text blocks, or null when it is missing, cut off or not in the schema. */
+export function readDecision(content: readonly { type: string; text?: string }[]): Decision | null {
+  const text = content.filter(b => b.type === 'text').map(b => b.text ?? '').join('')
+  try { const d = Decision.safeParse(JSON.parse(text)); return d.success ? d.data : null } catch { return null }
+}
+
 export class HaikuBrain implements Brain {
   readonly name: string
   private readonly client: Anthropic
@@ -79,16 +89,18 @@ export class HaikuBrain implements Brain {
   static async create(o: HaikuOptions): Promise<HaikuBrain> {
     return new HaikuBrain({ ...o, dispatcher: await proxyDispatcher(o.llm.proxy) })
   }
+  // create, not parse: parse throws on a cut-off or unreadable answer before the call's usage could be recorded
   async decide(item: Item): Promise<Decision> {
-    const r = await this.client.messages.parse({
+    const r = await this.client.messages.create({
       model: this.name, max_tokens: 2000, system: this.system,
       messages: [{ role: 'user', content: itemMessage(item) }],
-      output_config: { effort: 'low', format: zodOutputFormat(Decision) },
+      output_config: { effort: 'low', format: FORMAT },
     })
     this.onUsage?.(usageOf(r.usage))
     if (r.stop_reason === 'refusal') return { action: 'skip', vendor_name: null, to: null, amount: null, memo: '', thought: 'The model declined this item.' }
-    if (!r.parsed_output) throw new Error(`the model gave no decision (stop: ${r.stop_reason})`)
-    return r.parsed_output
+    const d = readDecision(r.content)
+    if (!d) throw new Error(`the model gave no decision (stop: ${r.stop_reason})`)
+    return d
   }
 }
 

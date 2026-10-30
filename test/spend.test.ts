@@ -70,18 +70,28 @@ test('a database from before model spend gains the table and keeps its rows', ()
   again.close()
 })
 
-test('the brain reports each answered call\'s usage, a refusal included', async () => {
+test('the brain records usage before reading the answer: a decision, a refusal, a cut-off and an unreadable answer', async () => {
   const seen: unknown[] = []
   const brain = new HaikuBrain({ apiKey: 'k', system: 's', llm: { model: MODEL, baseUrl: null, proxy: null }, onUsage: u => seen.push(u) })
   const usage = { input_tokens: 900, output_tokens: 80, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+  const text = (t: string) => [{ type: 'text', text: t }]
+  const decision = { action: 'skip', vendor_name: null, to: null, amount: null, memo: '', thought: 'no' }
   const answers = [
-    { stop_reason: 'end_turn', usage, parsed_output: { action: 'skip', vendor_name: null, to: null, amount: null, memo: '', thought: 'no' } },
-    { stop_reason: 'refusal', usage, parsed_output: null },
+    { stop_reason: 'end_turn', usage, content: text(JSON.stringify(decision)) },
+    { stop_reason: 'refusal', usage, content: [] },
+    { stop_reason: 'max_tokens', usage, content: text('{"action":"pay","to":"0x99') },
+    { stop_reason: 'end_turn', usage, content: text('{"action":"wire"}') },
   ]
-  brain['client'].messages.parse = (async () => answers.shift()) as any
-  await brain.decide({ channel: 'email', from: 'x', body: 'hi' })
+  let sent: any
+  brain['client'].messages.create = (async (body: unknown) => { sent = body; return answers.shift() }) as any
+  assert.deepEqual(await brain.decide({ channel: 'email', from: 'x', body: 'hi' }), decision)
+  assert.equal(sent.output_config.format.type, 'json_schema')
+  assert.equal('parse' in sent.output_config.format, false)
   assert.equal((await brain.decide({ channel: 'email', from: 'x', body: 'hi' })).action, 'skip')
-  assert.deepEqual(seen, [{ input: 900, output: 80, cacheWrite: 0, cacheRead: 0 }, { input: 900, output: 80, cacheWrite: 0, cacheRead: 0 }])
+  await assert.rejects(brain.decide({ channel: 'email', from: 'x', body: 'hi' }), /no decision \(stop: max_tokens\)/)
+  await assert.rejects(brain.decide({ channel: 'email', from: 'x', body: 'hi' }), /no decision/)
+  assert.equal(seen.length, 4)
+  assert.deepEqual(seen[2], { input: 900, output: 80, cacheWrite: 0, cacheRead: 0 })
 })
 
 const VENDORS: Vendor[] = loadConfig({ DEMO_FAKE: '1' }).vendors

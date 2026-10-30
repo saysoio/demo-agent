@@ -32,7 +32,10 @@ test('submit queues a cleaned item; bad input is refused', async () => {
   const { items } = await (await fetch(`${url}/api/feed?ids=${id}`)).json() as any
   assert.equal(items[0].from, 'billing@northwind-hosting.example')
   assert.equal(items[0].handle, 'mallory')
-  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'no sender' })).status, 400)
+  // a page from before senders: refused with a message that tells the player to reload
+  const old = await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'no sender' })
+  assert.equal(old.status, 400)
+  assert.match((await old.json() as any).error, /reload/i)
   assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'post', from: 'billing@northwind-hosting.example', text: 'x' })).status, 400)
   assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'fax', text: 'x' })).status, 400)
   assert.equal((await post('/api/submit', { handle: 'sayso', channel: 'email', from: 'billing@northwind-hosting.example', text: 'x' })).status, 400)

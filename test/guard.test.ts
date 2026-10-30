@@ -131,6 +131,9 @@ test('parseFrom takes one sender per channel, spoofs included, and nothing that 
   no('Dana ＜a@b.example＞', 'chat')
   no('Name ＂ ＜a@b.example＞', 'invoice')
   no('x'.repeat(MAX_FROM_CHARS + 1), 'chat')
+  // a page from before senders sends none: the error says to reload
+  for (const c of ['email', 'invoice', 'post', 'chat'] as const) assert.match((parseFrom(undefined, c) as { error: string }).error, /reload/i)
+  assert.doesNotMatch((parseFrom(5, 'email') as { error: string }).error, /reload/i)
 })
 
 test('vendor handles: whole slug and words of 4 or more, no empty or repeated entries', () => {

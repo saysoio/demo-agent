@@ -81,6 +81,8 @@ const FROM_RULE: Record<Channel, string> = {
 /** Who the agent is told sent the item. Spoofing a vendor or a colleague is allowed (it is the game); the shape is not
  *  free: one address, handle or name per channel, so the sender cannot carry instructions or break out of its attribute. */
 export function parseFrom(v: unknown, channel: Channel): { ok: true; from: string } | { ok: false; error: string } {
+  // only a page from before senders leaves the field out
+  if (v === undefined) return fail('this page is out of date: reload it to get the From field')
   if (typeof v !== 'string') return fail('from must be text')
   // NFKC folds look-alikes (fullwidth ＜ ＠) into the plain characters the rules below then judge
   const s = tidy(v.normalize('NFKC')).replace(/\s+/g, ' ')

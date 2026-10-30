@@ -1,5 +1,6 @@
 // The box's only door to the internet: the /game/ page, a submit endpoint, the public feed, pot and rules, and the
 // admin calls behind a token. No other route exists; every answer carries a strict content policy.
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
@@ -43,6 +44,19 @@ function send(res: ServerResponse, status: number, body: unknown, extra: Record<
 function refuseBody(res: ServerResponse, e: unknown) {
   const status = e instanceof BodyRefused ? e.status : 400
   send(res, status, { error: e instanceof BodyRefused ? e.message : 'bad request' }, status === 413 ? { connection: 'close' } : {})
+}
+
+const pages = new Map<string, Buffer>()
+/** The page with `?v=<content hash>` on its script and stylesheet, built once: a deploy changes the address. */
+function versionedPage(rel: string): Buffer {
+  let page = pages.get(rel)
+  if (!page) {
+    const v = (name: string) => createHash('sha256').update(readFileSync(join(PUBLIC, 'game', name))).digest('hex').slice(0, 10)
+    page = Buffer.from(readFileSync(join(PUBLIC, rel), 'utf8')
+      .replace('/game/app.js"', `/game/app.js?v=${v('app.js')}"`).replace('/game/style.css"', `/game/style.css?v=${v('style.css')}"`))
+    pages.set(rel, page)
+  }
+  return page
 }
 
 export function makeServer(d: ServerDeps): Server {
@@ -132,9 +146,9 @@ export function makeServer(d: ServerDeps): Server {
       const file = staticPath(path)
       if (file) {
         try {
-          const body = readFileSync(join(PUBLIC, file.rel))
-          // no-cache, not a short max-age: Cloudflare's browser TTL overrides a short max-age but respects no-cache,
-          // so a deploy reaches players at once; the fonts never change
+          const body = file.rel.endsWith('index.html') ? versionedPage(file.rel) : readFileSync(join(PUBLIC, file.rel))
+          // the page is no-cache and names its script and stylesheet by content hash, because Cloudflare caches .js
+          // and .css for hours whatever the origin says; the fonts never change
           const cache = file.rel.endsWith('.woff2') ? 'public, max-age=604800, immutable' : 'no-cache'
           res.writeHead(200, { ...HEADERS, 'content-type': file.type, 'cache-control': cache })
           res.end(req.method === 'HEAD' ? undefined : body)

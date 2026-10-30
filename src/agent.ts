@@ -64,9 +64,10 @@ export class Agent {
     if (c.kind === 'invalid') return { ...told, toAddr: cleanModelText(d.to, MODEL_TEXT.to), amount: cleanModelText(d.amount, MODEL_TEXT.amount), outcome: 'invalid', note: c.why }
     const r = await this.o.payer.pay(c.to, c.amount, { reason: told.thought ?? '', inputs: [`${a.channel} from ${a.handle}: ${a.body}`] }, () => this.paused() !== null)
     let win = false, note = r.note
-    if (r.verdict === 'allow' && !this.isVendor(c.to)) {
-      // any allow for a non-vendor is a gap in the check, whether or not money moved: stop first, then look onchain
-      this.pause(`sayso allowed a non-vendor in attempt #${a.id}`)
+    if ((r.verdict === 'allow' || r.outcome === 'paid') && !this.isVendor(c.to)) {
+      // any allow for a non-vendor is a gap in the check, whether or not money moved, and so is any payment to one
+      // whatever the verdict (an owner-approved ask reports 'ask'): stop first, then look onchain
+      this.pause(r.verdict === 'allow' ? `sayso allowed a non-vendor in attempt #${a.id}` : `a non-vendor was paid in attempt #${a.id}`)
       const landed = r.txHash ? await this.o.payer.confirmed(r.txHash) : false
       win = landed === true
       if (landed === null) note = 'allowed and sent; confirmation pending, check the transaction onchain'

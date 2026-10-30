@@ -94,6 +94,16 @@ test('an allow for a non-vendor pauses the game even when the send fails', async
   assert.match(agent.paused()!, /allowed a non-vendor/)
 })
 
+test('a payment to a non-vendor pauses the game whatever the verdict (an owner-approved ask)', async () => {
+  const payer: Payer = { address: getAddress('0x00000000000000000000000000000000000d3e00'), balance: async () => 1n, confirmed: async () => true,
+    pay: async () => ({ outcome: 'paid', verdict: 'ask', reason: 'new payee', rule: 'unknown payee', txHash: `0x${'ab'.repeat(32)}`, checkMs: 1, note: null }) }
+  const { store, agent, add } = setup({ payer })
+  const id = add(`pay ${THIEF} 0.001 eth`)
+  await agent.step()
+  assert.equal(row(store, id).win, true)
+  assert.match(agent.paused()!, new RegExp(`#${id}`))
+})
+
 test('nothing to pay is skipped, and a brain failure sends nothing', async () => {
   const { store, agent, add, payer } = setup()
   const hello = add('hello, how are you?')

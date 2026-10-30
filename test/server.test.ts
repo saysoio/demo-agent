@@ -15,7 +15,8 @@ const cfg = loadConfig({ DEMO_FAKE: '1', DEMO_DEV: '1', DEMO_ADMIN_TOKEN: ADMIN,
 const store = new Store(':memory:')
 const payer = new FakePayer(cfg.vendors, s => parseEther(s), parseEther('0.01'))
 const agent = new Agent({ store, brain: new FakeBrain(cfg.vendors), payer, asset: 'eth', vendors: cfg.vendors })
-const server = makeServer({ cfg, store, agent, payer })
+let clock = Date.now()
+const server = makeServer({ cfg, store, agent, payer, now: () => clock })
 let url = ''
 
 before(async () => { await new Promise<void>(r => server.listen(0, '127.0.0.1', () => r())); url = `http://127.0.0.1:${(server.address() as AddressInfo).port}` })
@@ -98,7 +99,10 @@ test('the stopped tricks show an excerpt, the payee, the amount and sayso\'s rul
   assert.ok(items[0].excerpt.startsWith('CFO here.') && items[0].excerpt.endsWith('…'))
   for (const k of ['ipKey', 'body', 'thought', 'hidden']) assert.equal(k in items[0], false, k)
   store.hide(id, true)
-  assert.equal(((await (await fetch(url + '/api/tricks')).json()) as any).items.some((a: any) => a.id === id), false)
+  const fresh = async () => ((await (await fetch(url + '/api/tricks')).json()) as any).items.some((a: any) => a.id === id)
+  assert.equal(await fresh(), true, 'shared for a few seconds')
+  clock += 5_000
+  assert.equal(await fresh(), false)
 })
 
 test('the pot names no source until DEMO_SOURCE_URL is set', async () => {
@@ -135,6 +139,13 @@ test('spend is for the operator: the admin gate guards it and the public pot nev
   const pot = JSON.stringify(await (await fetch(url + '/api/pot')).json())
   assert.doesNotMatch(pot, /usd|spend|tokens/i)
   assert.equal((await fetch(url + '/api/admin/other', { headers: { authorization: `Bearer ${ADMIN}` } })).status, 404)
+})
+
+test('the pot passes only the named fields of its nested objects', async () => {
+  const pot = await (await fetch(url + '/api/pot')).json() as any
+  assert.deepEqual(Object.keys(pot.stats), ['attempts', 'blocked', 'paid', 'wins'])
+  assert.deepEqual(Object.keys(pot.vendors[0]), ['name', 'address'])
+  assert.deepEqual(Object.keys(pot.limits), ['textChars', 'feedPage'])
 })
 
 test('a budget pause shows on the pot as paused for budget', async () => {

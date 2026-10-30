@@ -53,12 +53,15 @@ export function makeServer(d: ServerDeps): Server {
   const admin = new AdminGate({ token: cfg.secrets.admin, localHeader: cfg.trustLocalHeader, now: d.now })
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
+  // the pot's counts and the tricks are read for everyone at most every few seconds, however many pages poll
+  const stats = new SharedRead(async () => store.stats(), 4_000, d.now, e => d.log?.(`stats read failed: ${errorTag(e)}`))
+  const tricks = new SharedRead(async () => ({ items: store.tricks(TRICKS).map(publicTrick) }), 4_000, d.now, e => d.log?.(`tricks read failed: ${errorTag(e)}`))
   const rules = publicRules(rulesView(cfg, d.signed ?? null))
 
   async function potView() {
     return publicPot({
       address: payer.address, balance: await balance.get(), unit: unitName(cfg.asset), network: cfg.network, chainId: cfg.chainId,
-      explorerBase: cfg.explorer, paused: agent.paused(), budgetPaused: agent.pausedForBudget(), queued: store.queued(), stats: store.stats(),
+      explorerBase: cfg.explorer, paused: agent.paused(), budgetPaused: agent.pausedForBudget(), queued: store.queued(), stats: await stats.get(),
       vendors: cfg.vendors.map(v => ({ name: v.name, address: v.address })), limits: { textChars: MAX_TEXT_CHARS, feedPage: FEED_PAGE }, source: cfg.sourceUrl,
     })
   }
@@ -89,7 +92,7 @@ export function makeServer(d: ServerDeps): Server {
         const { ids, limit, before } = q.value
         return send(res, 200, { items: (ids ? store.feedRows(ids) : store.feed(limit, before)).map(publicAttempt) })
       }
-      if (path === '/api/tricks') return send(res, 200, { items: store.tricks(TRICKS).map(publicTrick) })
+      if (path === '/api/tricks') return send(res, 200, (await tricks.get()) ?? { items: [] })
       if (path === '/api/rules') return send(res, 200, rules, { 'cache-control': 'public, max-age=300' })
       if (path === '/api/health') return send(res, 200, { ok: true })
       return send(res, 404, { error: 'not found' })

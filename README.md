@@ -131,8 +131,10 @@ gets its base URL from the box (`api.anthropic.com` unless `DEMO_LLM_BASE_URL` i
    before it broadcasts them, and bounds the fee of every transaction. The box tightens those bounds to
    `DEMO_MAX_FEE_GWEI` (`feeBounds` in `src/wallet.ts`: priority fee at most the ceiling, gas x fee at most our gas limit
    x the ceiling, at most 60 such fees an hour) and keeps its own gas limit and per-gas ceiling, checked before sayso is
-   asked. Until 0.7.0 is on npm the lockfile still resolves 0.6.3: after publish run
-   `npm install saysoio@0.7.0 --save-exact`, check `npm test` and `npm run typecheck`, and commit `package-lock.json`.
+   asked. Until 0.7.0 is on npm, the `package.json` and `package-lock.json` changes stay uncommitted (the committed
+   lockfile still names 0.6.3, so the branch does not build in Docker yet). After publish: run
+   `npm install saysoio@0.7.0 --save-exact`, check that the lockfile's integrity hash for saysoio matches the reviewed
+   release tarball, run `npm test` and `npm run typecheck`, and commit both files together.
 3. **Mandate strictness: decided, `normal`.** The published rules avoid the words sayso's compiler reads as `strict`
    (only, never, nothing else) or `lenient` (roughly, mostly), and setup refuses anything but `strictness: normal`.
    They state a per-payment, daily and weekly cap (`DEMO_WEEKLY_CAP`, three times `DEMO_DAILY_CAP` by default). Under

@@ -29,7 +29,7 @@
         <div class="hero-copy">
           <p class="kicker" data-clear><span class="live-dot" aria-hidden="true"></span>A live game with a real AI agent</p>
           <h1 id="title" data-clear>Trick this AI agent into paying&nbsp;you.</h1>
-          <p class="lede" data-clear>It holds a wallet with <span class="money">test money</span> and pays anything that looks like a bill. Sayso checks every payment against the owner's signed rules before the wallet signs. Get one past to an address that isn't a vendor, and the transfer is&nbsp;yours.</p>
+          <p class="lede" data-clear>It holds a wallet with <span class="money">test money</span> and pays anything that looks like a bill. Sayso checks every payment against the owner's signed rules before the wallet signs. Get one past to an address that isn't a vendor, and the transfer is yours (test ETH, no&nbsp;value).</p>
           <div class="hero-act" data-clear>
             <a class="btn btn-p btn-lg" href="#play">Write your trick</a>
             <a class="btn btn-s btn-lg" href="#guard-h">See what you're up against</a>
@@ -102,7 +102,7 @@
             <label for="handle">Your handle</label>
             <div class="handle-input"><span class="at" aria-hidden="true">@</span><input id="handle" name="handle" autocomplete="nickname" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="your_x_handle" required></div>
           </div>
-          <p id="text-note" class="note">Your handle and message appear in the public feed. Don't send anything private.</p>
+          <p id="text-note" class="note">Your handle and message appear in the public feed, and we keep them. Don't send anything private. Sending means you accept the <a class="link" href="/game/rules.html">rules</a>.</p>
           <button id="send" class="btn btn-p btn-lg" type="submit">Send to the agent's inbox</button>
           <p id="msg" class="msg" role="status"></p>
         </form>
@@ -177,9 +177,9 @@
         <ul class="rule-list">
           <li>The agent reads one message at a time and decides whether to pay. It has no tools: it can only propose a payment. It is trusting on purpose, so fooling it is the easy part.</li>
           <li>Sayso checks every proposed payment against the owner's signed rules. The wallet signs only on an allow.</li>
-          <li>You win if money leaves the pot for an address that is not one of our vendors. The transfer is your prize. The game pauses after a win while we close the gap.</li>
+          <li>You win if money leaves the pot for an address that is not one of our vendors. The transfer is yours (test ETH, no value). The game pauses after a win while we close the gap.</li>
           <li>Real vendor invoices arrive on a timer, so allowed payments show in the feed too.</li>
-          <li>Attack the agent and the check only, not the server, the hosting or other players. Free to play.</li>
+          <li>Attack the agent and the check only, not the server, the hosting or other players. Free to play. <a class="link" href="/game/rules.html">Full rules</a>.</li>
         </ul>
         <h3 class="inst-h">Our vendors</h3>
         <ul id="vendors" class="vendors"></ul>
@@ -187,7 +187,11 @@
     </div>
   </main>
 
-  <footer class="foot"><div class="wrap">A live demo of Sayso, the check before your AI agent signs.<span id="foot-code" hidden> <a id="foot-link" href="#" rel="noopener noreferrer" target="_blank">Read the code</a>.</span></div></footer>
+  <footer class="foot"><div class="wrap foot-in">
+    <p class="foot-terms">Break the guard runs on the Base Sepolia test network with test ETH that has no value. You must be 18 or older, and not in a sanctioned country or on a sanctions list. Everything you type is public on the feed, and we keep it. To have an entry removed, email <a href="mailto:security@saysoio.com">security@saysoio.com</a>. Run by the sayso team. Not affiliated with Devcon or the Ethereum Foundation.</p>
+    <p class="foot-links"><a href="/game/rules.html">Rules and privacy notice</a><a href="https://saysoio.com/privacy">Privacy</a><span id="foot-code" hidden><a id="foot-link" href="#" rel="noopener noreferrer" target="_blank">Read the code</a></span></p>
+    <p>A live demo of sayso, the check before your AI agent signs.</p>
+  </div></footer>
 
   <template id="row">
     <li class="item">

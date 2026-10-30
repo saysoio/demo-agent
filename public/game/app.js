@@ -32,6 +32,7 @@ const short = a => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
 const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago` }
 const get = path => fetch(path, { headers: { accept: 'application/json' } }).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
 
+const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 // a line like "Sayso: reason", the label in its own span; both parts as text
 function labelled(el, label, text) {
   el.replaceChildren()
@@ -43,7 +44,7 @@ function labelled(el, label, text) {
 function render(a) {
   const li = shown.get(a.id) ?? $('row').content.firstElementChild.cloneNode(true)
   let tone
-  li.querySelector('.who').textContent = a.source === 'vendor' ? `vendor · ${a.handle}` : `@${a.handle}`
+  li.querySelector('.who').textContent = a.source === 'vendor' ? `${a.handle}, our vendor` : `@${a.handle}`
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.body').textContent = a.body
@@ -90,13 +91,15 @@ async function loadPot() {
   bal.textContent = p.balance == null ? '…' : amountText(p.balance, p.unit); bal.title = p.balance == null ? '' : `${p.balance} ${p.unit}`
   $('unit').textContent = p.unit
   for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'money'
-  $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`; $('network').textContent = p.network === 'base' ? 'Base' : 'Base Sepolia (test money)'
+  $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`
+  $('network').textContent = p.network === 'base' ? `Real ${p.unit} on Base` : `Test ${p.unit} on Base Sepolia, for now`
   setStatus(p.paused ? 'paused' : 'live')
   const note = $('pause-note')
   note.hidden = !p.paused
   note.textContent = p.budgetPaused ? 'Paused for budget: the agent has used its model budget for today. It is back after midnight UTC.' : p.paused ? 'The game is paused for now.' : ''
   showSource(p.source)
-  $('s-attempts').textContent = p.stats.attempts; $('s-blocked').textContent = p.stats.blocked; $('s-wins').textContent = p.stats.wins; $('s-queued').textContent = p.queued
+  ledger(p.stats)
+  $('s-queued').textContent = p.queued
   $('send').disabled = !!p.paused
   const v = $('vendors')
   if (!v.childElementCount) for (const x of p.vendors) {
@@ -106,6 +109,29 @@ async function loadPot() {
   }
 }
 
+// every player's try as one cell, grouped by what happened; past CELLS_MAX tries a cell stands for several
+const CELLS_MAX = 160
+let ledgerKey = ''
+function ledger(s) {
+  const vendorPaid = Math.max(0, s.paid - s.wins), other = Math.max(0, s.attempts - s.blocked - s.paid)
+  $('s-attempts').textContent = s.attempts; $('s-blocked').textContent = s.blocked; $('s-paid').textContent = vendorPaid
+  $('s-other').textContent = other; $('s-wins').textContent = s.wins
+  const key = [s.attempts, s.blocked, s.paid, s.wins].join()
+  if (key === ledgerKey) return
+  ledgerKey = key
+  const per = Math.max(1, Math.ceil(s.attempts / CELLS_MAX)), n = x => (x > 0 ? Math.max(1, Math.round(x / per)) : 0)
+  const cells = []
+  for (const [count, cls] of [[s.wins, 'win'], [s.blocked, 'block'], [vendorPaid, 'allow'], [other, 'quiet']]) {
+    for (let i = n(count); i > 0; i--) { const c = document.createElement('i'); c.className = cls; cells.push(c) }
+  }
+  const box = $('cells')
+  box.className = `cells${cells.length > 60 ? ' many' : cells.length > 24 ? ' mid' : ''}`
+  box.replaceChildren(...cells)
+  box.setAttribute('aria-label', s.attempts
+    ? `${s.attempts} tries: ${s.blocked} stopped by Sayso, ${vendorPaid} paid a real vendor, ${other} with nothing to pay, ${s.wins} broke the guard${per > 1 ? `. Each square is about ${per} tries` : ''}`
+    : 'No tries yet')
+}
+
 // the link appears only for an https URL the server sends
 function showSource(url) {
   const ok = typeof url === 'string' && url.startsWith('https://')
@@ -113,25 +139,42 @@ function showSource(url) {
   $('code-link').hidden = !ok; $('foot-code').hidden = !ok
 }
 
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
+
 async function loadRules() {
   const r = await get('/api/rules')
   const amt = x => `${x} ${r.unit}`
   const v = $('g-vendors'); v.replaceChildren()
   for (const x of r.vendors) {
-    const li = document.createElement('li'), n = document.createElement('span'), ad = document.createElement('code')
-    n.textContent = x.name; ad.textContent = short(x.address); ad.title = x.address
-    li.append(n, ' ', ad); v.append(li)
+    const li = el('li'), ad = el('code', '', short(x.address)); ad.title = x.address
+    li.append(el('i', 'mk allow'), el('span', 'p-name', x.name), ad); v.append(li)
   }
+  const rest = el('li', 'else'); rest.append(el('i', 'mk block'), el('span', 'p-name', 'Anyone else'), el('b', '', 'Blocked')); v.append(rest)
   $('g-per').textContent = amt(r.perPayment); $('g-day').textContent = amt(r.daily); $('g-week').textContent = amt(r.weekly)
-  $('g-actions').textContent = r.actions.length === 1 && r.actions[0] === 'transfer' ? `Plain ${r.unit} transfers to these payees only. No trades, contract calls, approvals or signed messages.` : r.actions.join(', ')
-  $('g-strict').textContent = r.strictness
-  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}, ${r.sdk.mode} mode: nothing is signed without Sayso's allow`
+  // each cap drawn as payments at the per-payment cap: one square each
+  const per = Number(r.perPayment)
+  for (const [id, x] of [['g-per-bar', r.perPayment], ['g-day-bar', r.daily], ['g-week-bar', r.weekly]]) {
+    const n = per > 0 ? Math.min(60, Math.round(Number(x) / per)) : 0
+    $(id).replaceChildren(...Array.from({ length: Number.isFinite(n) ? n : 0 }, () => el('i')))
+  }
+  const acts = $('g-actions'); acts.replaceChildren()
+  if (r.actions.length === 1 && r.actions[0] === 'transfer') {
+    const yes = el('li', 'yes'); yes.append(el('i', 'mk allow'), el('span', '', `Plain ${r.unit} transfers to these payees`)); acts.append(yes)
+    for (const t of ['Token trades', 'Contract calls', 'Spending approvals', 'Signed messages']) {
+      const li = el('li', 'no'); li.append(el('i', 'mk block'), el('span', '', t)); acts.append(li)
+    }
+  } else for (const a of r.actions) acts.append(el('li', 'yes', a))
+  const st = $('g-strict')
+  for (const s of st.children) s.classList.toggle('on', s.dataset.v === r.strictness)
+  st.setAttribute('role', 'img'); st.setAttribute('aria-label', `Strictness: ${r.strictness}`)
+  $('g-mode').textContent = r.sdk.mode === 'enforce' ? 'Enforce mode on' : `${r.sdk.mode} mode`
+  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}${r.sdk.mode === 'enforce' ? ": nothing is signed without Sayso's allow" : ''}`
   $('g-server-row').hidden = !r.checkServer
   if (r.checkServer) $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
-  $('g-signed').textContent = r.signedVerdicts ? 'Signed by Sayso, every one; the wallet checks the signature' : 'unsigned'
+  $('g-signed').textContent = r.signedVerdicts ? 'Every one signed by Sayso. The wallet checks the signature.' : 'Unsigned'
   $('g-source').textContent = r.source === 'signed rules'
-    ? `Signed rules, word for word${r.signedAt ? ` (signed ${r.signedAt.slice(0, 10)})` : ''}`
-    : 'Published rules, word for word (not read from the signed file)'
+    ? `The signed rules, word for word${r.signedAt ? ` (signed ${r.signedAt.slice(0, 10)})` : ''}`
+    : 'The published rules, word for word'
   $('g-text').textContent = r.text
 }
 
@@ -155,13 +198,12 @@ function trick(a) {
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.t-body').textContent = a.excerpt
-  li.querySelector('.what').textContent = a.toAddr ? `tried ${a.amount} ${unit} to ${short(a.toAddr)}` : ''
+  li.querySelector('.what').textContent = a.toAddr ? `${a.amount} ${unit} to ${short(a.toAddr)}` : ''
   li.querySelector('.rule').textContent = Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
-  labelled(li.querySelector('.reason'), 'Sayso', a.reason ?? '')
+  li.querySelector('.reason').textContent = a.reason ?? ''
   return li
 }
 
-const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 function carButtons() {
   const l = $('t-list'), end = l.scrollWidth - l.clientWidth - 2
   $('t-prev').disabled = l.scrollLeft <= 2; $('t-next').disabled = l.scrollLeft >= end

@@ -133,7 +133,10 @@ export function makeServer(d: ServerDeps): Server {
       if (file) {
         try {
           const body = readFileSync(join(PUBLIC, file.rel))
-          res.writeHead(200, { ...HEADERS, 'content-type': file.type, 'cache-control': 'public, max-age=60' })
+          // no-cache, not a short max-age: Cloudflare's browser TTL overrides a short max-age but respects no-cache,
+          // so a deploy reaches players at once; the fonts never change
+          const cache = file.rel.endsWith('.woff2') ? 'public, max-age=604800, immutable' : 'no-cache'
+          res.writeHead(200, { ...HEADERS, 'content-type': file.type, 'cache-control': cache })
           res.end(req.method === 'HEAD' ? undefined : body)
           return
         } catch { return send(res, 404, { error: 'not found' }) }

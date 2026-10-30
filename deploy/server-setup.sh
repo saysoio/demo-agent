@@ -106,8 +106,12 @@ if [ "$NO_ROOT" = 1 ]; then
   [ -s "$DH/.ssh/authorized_keys" ] || die "--disable-root-login needs $DEMO_USER's authorized_keys first"
   ROOTLOGIN=no
 fi
-# 00- so these win: sshd keeps the first value it reads, and cloud images ship 50-cloud-init.conf
-put /etc/ssh/sshd_config.d/00-demo.conf <<EOF && SSHD_CHANGED=1 || SSHD_CHANGED=0
+# 00- so these win: sshd keeps the first value it reads, and cloud images ship 50-cloud-init.conf.
+# The new file is tested with sshd -t in place; if sshd rejects it, the previous file (or none) comes back.
+SSHD_DROPIN=/etc/ssh/sshd_config.d/00-demo.conf
+SSHD_PREV=$(mktemp); SSHD_HAD=0
+[ -f "$SSHD_DROPIN" ] && { cp -p "$SSHD_DROPIN" "$SSHD_PREV"; SSHD_HAD=1; }
+put "$SSHD_DROPIN" <<EOF && SSHD_CHANGED=1 || SSHD_CHANGED=0
 # written by deploy/server-setup.sh
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -119,9 +123,15 @@ X11Forwarding no
 EOF
 say "root login: $ROOTLOGIN"
 if command -v sshd >/dev/null; then
-  sshd -t || die "sshd rejected the configuration (sshd -t); fix /etc/ssh/sshd_config.d/00-demo.conf before you log out"
-  [ "$SSHD_CHANGED" = 1 ] && sys systemctl try-reload-or-restart ssh.service
-else say "no sshd installed here (container?); nothing to reload"; fi
+  install -d -m 0755 /run/sshd
+  if ! sshd -t; then
+    if [ "$SSHD_HAD" = 1 ]; then install -m 0644 "$SSHD_PREV" "$SSHD_DROPIN"; else rm -f "$SSHD_DROPIN"; fi
+    rm -f "$SSHD_PREV"
+    die "sshd rejected the configuration (sshd -t); the previous $SSHD_DROPIN is back and sshd was not reloaded"
+  fi
+  if [ "$SSHD_CHANGED" = 1 ]; then sys systemctl try-reload-or-restart ssh.service; fi
+else say "no sshd installed here (container?); nothing to test or reload"; fi
+rm -f "$SSHD_PREV"
 
 step "Docker Engine $DOCKER_MAJOR.x from download.docker.com ($CODENAME)"
 install -d -m 0755 /etc/apt/keyrings
@@ -185,9 +195,13 @@ sys systemctl enable demo-docker-user.service
 sys systemctl restart demo-docker-user.service
 
 step "Caddy from its apt repo"
-if [ ! -s /usr/share/keyrings/caddy-stable-archive-keyring.gpg ]; then
-  curl -fsSL --proto '=https' https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-fi
+# Caddy's signing key ("Caddy Web Server <contact@caddyserver.com>"); the same fingerprint is on keyserver.ubuntu.com
+CADDY_FPR=65760C51EDEA2017CEA2CA15155B6D79CA56EA34
+curl -fsSL --proto '=https' https://dl.cloudsmith.io/public/caddy/stable/gpg.key -o /tmp/caddy-key.asc
+FPR=$(gpg --show-keys --with-colons /tmp/caddy-key.asc 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')
+[ "$FPR" = "$CADDY_FPR" ] || { rm -f /tmp/caddy-key.asc; die "Caddy's signing key has an unexpected fingerprint ($FPR)"; }
+gpg --dearmor < /tmp/caddy-key.asc | put /usr/share/keyrings/caddy-stable-archive-keyring.gpg || true
+rm -f /tmp/caddy-key.asc
 curl -fsSL --proto '=https' https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | put /etc/apt/sources.list.d/caddy-stable.list || true
 apt-get update -q >/dev/null
 apt_install caddy
@@ -195,22 +209,40 @@ say "$(caddy version 2>/dev/null | cut -d' ' -f1 || echo 'caddy installed')"
 install -d -m 0755 -o caddy -g caddy /var/log/caddy
 
 step "firewall: 22 open, 80/443 from Cloudflare only, everything else closed"
+# the firewall opens SSH on 22 only (cf-refresh.sh); on any other port this would lock you out
+if command -v sshd >/dev/null; then
+  SSH_PORTS=$(sshd -T 2>/dev/null | awk '$1=="port"{print $2}' | sort -u | paste -sd' ' -)
+  [ "$SSH_PORTS" = 22 ] || die "sshd listens on port(s) '${SSH_PORTS:-unknown}', but the firewall opens only 22; nothing loaded. Move sshd back to 22, or change 'tcp dport 22' in cf-refresh.sh first"
+  say "sshd listens on 22 only"
+fi
 put /usr/local/sbin/demo-cf-refresh 0755 < "$HERE/cf-refresh.sh" || true
 put /etc/systemd/system/demo-firewall.service <<'EOF' || true
 [Unit]
 Description=Demo host firewall (nftables table inet demo_host, saved Cloudflare ranges)
 DefaultDependencies=no
 Wants=network-pre.target
+After=local-fs.target
 Before=network-pre.target shutdown.target
 Conflicts=shutdown.target
+OnFailure=demo-firewall-alert.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+Environment=TMPDIR=/run
 ExecStart=/usr/local/sbin/demo-cf-refresh --saved
 
 [Install]
 WantedBy=sysinit.target
+EOF
+put /etc/systemd/system/demo-firewall-alert.service <<'EOF' || true
+[Unit]
+Description=Alert: the demo host firewall did not load
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo "DEMO FIREWALL FAILED: table inet demo_host did not load at boot, so ports may be open. Check: systemctl status demo-firewall; then demo-cf-refresh" | systemd-cat -t demo-firewall -p emerg'
+ExecStart=-/bin/sh -c 'echo "DEMO FIREWALL FAILED: table inet demo_host did not load at boot. Check: systemctl status demo-firewall" | wall'
 EOF
 put /etc/systemd/system/demo-cf-refresh.service <<'EOF' || true
 [Unit]
@@ -238,9 +270,10 @@ if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q 'Status: active
   say "ufw is active; turning it off (this script's nftables table replaces it, and two firewalls would both have to agree)"
   sys ufw disable
 fi
-if systemctl is-enabled --quiet nftables.service 2>/dev/null; then
-  say "WARNING: nftables.service is enabled; its /etc/nftables.conf usually starts with 'flush ruleset', which would wipe Docker's rules and this table at boot. Disable it: systemctl disable nftables"
-fi
+# the stock nftables.service loads /etc/nftables.conf, which starts with 'flush ruleset': that would wipe Docker's rules
+# and this table. demo-firewall.service loads the table instead.
+say "masking nftables.service (its 'flush ruleset' would wipe Docker's rules and this table)"
+sys systemctl mask nftables.service
 sys systemctl daemon-reload
 if [ "$CHECK" = 1 ]; then
   /usr/local/sbin/demo-cf-refresh --check | sed -n '1p;$p'

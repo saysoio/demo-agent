@@ -116,6 +116,13 @@ export class Store {
     return rows.map(row)
   }
 
+  /** Player tries the agent fell for and sayso stopped: it proposed a payment and the verdict or outcome was a block.
+   *  Newest first, hidden rows left out. */
+  tricks(limit = 10): Attempt[] {
+    return this.db.prepare(`SELECT ${COLS} FROM attempts WHERE hidden = 0 AND source = 'player' AND status = 'done' AND action = 'pay'
+      AND (verdict = 'block' OR outcome = 'blocked') ORDER BY id DESC LIMIT ?`).all(limit).map(row)
+  }
+
   stats(): { attempts: number; blocked: number; paid: number; wins: number } {
     const r = this.db.prepare(`SELECT COUNT(*) AS attempts, SUM(outcome IN ('blocked', 'asked')) AS blocked, SUM(outcome = 'paid') AS paid, SUM(win) AS wins FROM attempts WHERE source = 'player'`).get() as any
     return { attempts: Number(r.attempts ?? 0), blocked: Number(r.blocked ?? 0), paid: Number(r.paid ?? 0), wins: Number(r.wins ?? 0) }

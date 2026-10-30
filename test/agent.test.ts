@@ -207,3 +207,26 @@ test('a database from before check_rule gains the column and keeps its rows', ()
   store.close()
   new Store(path).close()
 })
+
+test('the stopped tricks are player payments sayso blocked, newest first, at most the limit, hidden ones left out', () => {
+  const store = new Store(':memory:')
+  const base = { action: 'pay' as const, toAddr: THIEF, amount: '0.001', memo: null, thought: null, reason: 'r', rule: 'unknown payee' as const, note: null, txHash: null, checkMs: 1, win: false }
+  const make = (source: 'player' | 'vendor', x: Partial<typeof base & { verdict: any; outcome: any; action: any }>) => {
+    const id = store.add({ source, handle: 'h', ipKey: 'k', channel: 'email', body: 'b' })
+    store.finish(id, { ...base, verdict: 'block', outcome: 'blocked', ...x })
+    return id
+  }
+  const blocked = make('player', {})
+  const verdictOnly = make('player', { outcome: 'error' })
+  make('player', { verdict: 'ask', outcome: 'asked' })
+  make('player', { verdict: 'allow', outcome: 'paid' })
+  make('player', { action: 'skip', verdict: null, outcome: 'skipped' })
+  make('vendor', {})
+  const hidden = make('player', {}); store.hide(hidden, true)
+  store.add({ source: 'player', handle: 'h', ipKey: 'k', channel: 'email', body: 'queued' })
+  assert.deepEqual(store.tricks().map(a => a.id), [verdictOnly, blocked])
+  for (let i = 0; i < 12; i++) make('player', {})
+  assert.equal(store.tricks().length, 10)
+  assert.equal(store.tricks(3).length, 3)
+  store.close()
+})

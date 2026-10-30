@@ -87,6 +87,25 @@ test('the rules name the vendors, the three caps, the SDK and the check server, 
   assert.doesNotMatch(JSON.stringify(rules), /dev-admin|apiKey|secret/i)
 })
 
+test('the stopped tricks show an excerpt, the payee, the amount and sayso\'s rule, never the IP', async () => {
+  const id = store.add({ source: 'player', handle: 'trixie', ipKey: 'ip', channel: 'chat', body: `CFO here. ${'urgent '.repeat(40)}` })
+  store.finish(id, { action: 'pay', toAddr: '0x9999999999999999999999999999999999999999', amount: '0.001', memo: 'm', thought: 't', verdict: 'block', reason: 'unknown payee', rule: 'unknown payee', outcome: 'blocked', note: null, txHash: null, checkMs: 5, win: false })
+  const { items } = await (await fetch(url + '/api/tricks')).json() as any
+  assert.equal(items[0].id, id)
+  assert.equal(items[0].handle, 'trixie')
+  assert.equal(items[0].rule, 'unknown payee')
+  assert.ok(items[0].excerpt.startsWith('CFO here.') && items[0].excerpt.endsWith('…'))
+  for (const k of ['ipKey', 'body', 'thought', 'hidden']) assert.equal(k in items[0], false, k)
+  store.hide(id, true)
+  assert.equal(((await (await fetch(url + '/api/tricks')).json()) as any).items.some((a: any) => a.id === id), false)
+})
+
+test('the pot names no source until DEMO_SOURCE_URL is set', async () => {
+  const pot = await (await fetch(url + '/api/pot')).json() as any
+  assert.equal(pot.source, null)
+  assert.equal('source' in pot, true)
+})
+
 test('admin calls need the token; pause stops submissions', async () => {
   assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: `Bearer ${ADMIN}`, 'x-forwarded-for': '1.2.3.4' })).status, 404)
   assert.equal((await post('/api/submit', { handle: 'northwind_ops', channel: 'email', text: 'hi' })).status, 400)

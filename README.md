@@ -51,6 +51,8 @@ Node 24 or newer runs the TypeScript directly; there is no build step.
    proxy with TLS.
 4. Fund the agent wallet (Sepolia test ETH first; the real pot only after the go/no-go).
 
+The production box (Caddy behind Cloudflare, firewall, backups, updates, go-live checklist): `deploy/README.md`.
+
 Admin (token in `DEMO_ADMIN_TOKEN`):
 
 ```bash

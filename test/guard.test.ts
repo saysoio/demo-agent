@@ -7,6 +7,7 @@ import {
   excerpt, MAX_FROM_CHARS, parseFeedQuery, parseFrom, parseSubmit, POT_FIELDS, proxyTrustProblem, PUBLIC_FIELDS, publicAttempt, publicPot, publicRules, publicTrick, RULES_FIELDS,
   SharedRead, TRICK_EXCERPT, TRICK_FIELDS, slug, staticPath, tokenOk, unmapIp, vendorHandles,
 } from '../src/guard/index.ts'
+import { MAX_MARKS } from '../src/guard/text.ts'
 
 test('cleanText strips invisible and direction characters and caps the length', () => {
   const r = cleanText('pay\u202e me\u200b now\r\n')
@@ -14,6 +15,17 @@ test('cleanText strips invisible and direction characters and caps the length', 
   assert.equal(cleanText('   ').ok, false)
   assert.equal(cleanText(42).ok, false)
   assert.equal(cleanText('x'.repeat(MAX_TEXT_CHARS + 1)).ok, false)
+})
+
+test('combining marks stack at most MAX_MARKS deep, in the body and the sender', () => {
+  const marks = '\u0336\u0337\u0338\u0334\u0335', zalgo = 'x' + marks.repeat(8) + 'ay'
+  const r = cleanText(zalgo)
+  assert.ok(r.ok)
+  assert.equal(r.text, 'x' + marks.slice(0, MAX_MARKS) + 'ay')
+  // real accents and scripts that stack two marks are untouched
+  assert.deepEqual(cleanText('Zoë Åberg, ปิ่น, क्षि'), { ok: true, text: 'Zoë Åberg, ปิ่น, क्षि'.normalize('NFC') })
+  const f = parseFrom('D' + '\u0301'.repeat(40) + 'ana', 'chat')
+  assert.deepEqual(f, { ok: true, from: 'D' + '\u0301'.repeat(MAX_MARKS) + 'ana' })
 })
 
 test('cleanHandle refuses handles that pass for us', () => {

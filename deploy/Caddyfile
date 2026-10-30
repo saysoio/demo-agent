@@ -1,0 +1,66 @@
+# Caddy in front of demo-agent, installed as /etc/caddy/Caddyfile by deploy/server-setup.sh.
+# game.saysoio.com is proxied by Cloudflare (orange cloud, SSL mode Full (strict)). Caddy gets a Let's Encrypt
+# certificate by HTTP-01, which works through the Cloudflare proxy as long as Cloudflare's "Always Use HTTPS" stays off
+# (Caddy redirects to HTTPS itself). The alternative, a Cloudflare Origin Certificate, is in deploy/README.md.
+{
+	servers {
+		# trusted_proxies static <Cloudflare's ranges>, written and refreshed daily by demo-cf-refresh
+		import /etc/caddy/cloudflare-trusted.caddy
+		# the visitor's address comes from CF-Connecting-IP only when the peer is one of those ranges; otherwise it is
+		# the peer itself, so a caller who reaches the box directly cannot make up an address
+		client_ip_headers CF-Connecting-IP
+		timeouts {
+			read_header 10s
+			read_body 10s
+			write 30s
+			idle 2m
+		}
+		max_header_size 16KB
+	}
+}
+
+game.saysoio.com {
+	# the app refuses bodies over 4 KB; anything much larger stops here
+	request_body {
+		max_size 8KB
+	}
+
+	# admin calls answer from inside the container only (the app's gate wants a loopback peer); never route them
+	@admin path /api/admin /api/admin/*
+	respond @admin 404
+
+	# The app sets its own Content-Security-Policy, nosniff, Referrer-Policy and COOP; they are left as they are.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+		Cross-Origin-Resource-Policy "same-origin"
+		-Server
+	}
+
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:8787 {
+		# the app's DEMO_TRUST_LOCAL_HEADER=cf-connecting-ip: always the address Caddy settled on, never the caller's
+		header_up CF-Connecting-IP {client_ip}
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
+
+	log {
+		output file /var/log/caddy/game.access.log {
+			roll_size 10MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		# no query strings, request headers or response headers in the log
+		format filter {
+			request>uri regexp "\?.*$" ""
+			request>headers delete
+			resp_headers delete
+			wrap json
+		}
+	}
+}

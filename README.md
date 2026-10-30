@@ -51,6 +51,8 @@ Node 24 or newer runs the TypeScript directly; there is no build step.
    proxy with TLS.
 4. Fund the agent wallet (Sepolia test ETH first; the real pot only after the go/no-go).
 
+The production box (Caddy behind Cloudflare, firewall, backups, updates, go-live checklist): `deploy/README.md`.
+
 Admin (token in `DEMO_ADMIN_TOKEN`):
 
 ```bash
@@ -77,9 +79,9 @@ docker compose logs -f
 - **Client addresses:** the app believes `DEMO_TRUST_LOCAL_HEADER` only from a loopback peer or an address listed in
   `DEMO_TRUSTED_PROXY` (exact IPs, comma-separated, no ranges). Inside the container no proxy is loopback: a proxy on
   the host connects from the network's gateway, one in another container from its bridge address. So on a non-loopback
-  `DEMO_HOST` the box refuses to start without `DEMO_TRUSTED_PROXY` and the header. Put the service on a named network
-  with a pinned gateway (`ipam.config: [{ subnet: 172.30.0.0/24, gateway: 172.30.0.1 }]`, commented example in
-  `compose.yaml`) and list `172.30.0.1` for a proxy on the host, or the proxy container's fixed address. Trusted
+  `DEMO_HOST` the box refuses to start without `DEMO_TRUSTED_PROXY` and the header. The compose project's default
+  network has a pinned gateway (`subnet: 172.30.0.0/24, gateway: 172.30.0.1` in `compose.yaml`): list `172.30.0.1` for
+  a proxy on the host (the production setup in `deploy/README.md`), or the proxy container's fixed address. Trusted
   proxies never reach the admin calls.
 - **Admin calls** must come from inside the container (the admin gate accepts loopback only):
 

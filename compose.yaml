@@ -23,13 +23,10 @@ services:
     mem_limit: 512m
     pids_limit: 128
     restart: unless-stopped
-    # On 0.0.0.0 the box refuses to start without DEMO_TRUSTED_PROXY. Put it on the named network below, whose gateway
-    # is pinned. Proxy on the host: its connections arrive from the gateway, so set DEMO_TRUSTED_PROXY=172.30.0.1.
-    # Proxy in another container: give that service `networks: { edge: { ipv4_address: 172.30.0.2 } }` and set
+    # On 0.0.0.0 the box refuses to start without DEMO_TRUSTED_PROXY. The default network below has a pinned gateway.
+    # Proxy on the host (deploy/Caddyfile): its connections arrive from the gateway, so set DEMO_TRUSTED_PROXY=172.30.0.1.
+    # Proxy in another container: give that service `networks: { default: { ipv4_address: 172.30.0.2 } }` and set
     # DEMO_TRUSTED_PROXY=172.30.0.2. Either way set DEMO_TRUST_LOCAL_HEADER to the header the proxy sets.
-    # networks:
-    #   edge:
-    #     ipv4_address: 172.30.0.10
     logging:
       driver: json-file
       options:
@@ -60,9 +57,10 @@ services:
 volumes:
   demo-data:
 
-# networks:
-#   edge:
-#     ipam:
-#       config:
-#         - subnet: 172.30.0.0/24
-#           gateway: 172.30.0.1
+# Every service joins this network (the outline profile too), so the gateway a proxy on the host connects from is fixed.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1

@@ -99,6 +99,11 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
 .nav-links a[aria-current=page] { text-decoration: underline; text-decoration-color: var(--s500); text-underline-offset: 8px; }
 .nav-app { font-size: 15px; font-weight: 600; color: var(--s200); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: 32px; }
 .nav-app:hover { color: var(--chalk); }
+/* the rules page keeps the short header: brand and a Play button */
+.nav .nav-in { justify-content: space-between; gap: 12px; min-height: 60px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; color: var(--s50); min-width: 0; }
+.mark { width: 26px; height: 18px; display: block; flex: none; }
+.brand-game { padding-left: 12px; border-left: 1px solid var(--s600); font-weight: 600; font-size: 15px; color: var(--s300); white-space: nowrap; }
 .menu { display: none; position: relative; }
 .menu summary { list-style: none; cursor: pointer; min-height: 40px; padding: 0 12px; border: 1px solid var(--s600); border-radius: 3px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
 .menu summary::-webkit-details-marker { display: none; }

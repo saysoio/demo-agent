@@ -77,6 +77,13 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
   background-image: conic-gradient(from 270deg at 4px 4px, var(--v1) 90deg, #0000 0), conic-gradient(from 270deg at 4px 4px, var(--v2) 90deg, #0000 0),
     conic-gradient(from 270deg at 4px 4px, var(--v3) 90deg, #0000 0), conic-gradient(from 270deg at 4px 4px, var(--v4) 90deg, #0000 0);
   background-size: 10px 10px; background-position: 0 0, 5px 0, 0 5px, 5px 5px; }
+/* the text sits on a solid plate inside the mosaic, so it reads at AA: white on #9E2A3A 7.4:1, slate 900 on #62B276
+   7.1:1, slate 900 on #DDCC70 11.3:1 */
+.stamp::after, .badge.ok::after, .badge.stop::after, .badge.hold::after, .badge.win::after {
+  content: ""; position: absolute; z-index: -1; inset: 3px; background: var(--plate); }
+.st-block, .badge.stop, .badge.win { --plate: #9E2A3A; }
+.badge.ok { --plate: #62B276; }
+.badge.hold { --plate: #DDCC70; }
 .stamp { display: inline-flex; align-items: center; height: 29px; padding: 0 10px; font: 700 14px/1 var(--sans); letter-spacing: .06em; color: #fff; }
 
 /* nav */
@@ -122,6 +129,7 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
   background-size: 10px 10px; background-position: 0 0, 5px 0, 0 5px, 5px 5px; }
 .cells.mid i { --c: 14px; } .cells.many { gap: 4px; } .cells.many i { --c: 9px; background-color: transparent; }
 .cells i.win { outline: 2px solid var(--chalk); outline-offset: 2px; }
+.cells i.wait { background: none; border: 1px dashed var(--s400); }
 .cells:empty::before { content: ""; width: 100%; height: 14px; border: 1px dashed var(--s600); }
 .legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
 .legend div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
@@ -161,6 +169,8 @@ main > .hero + .wrap { margin-top: clamp(24px, 3vw, 40px); }
 .tricks { min-width: 0; }
 .car-nav { display: flex; gap: 8px; flex: none; }
 .car-btn { width: 44px; padding: 0; }
+.car-btn[aria-disabled="true"] { opacity: .45; cursor: default; }
+.car-btn[aria-disabled="true"]:hover { border-color: var(--s500); }
 .arr { width: 9px; height: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateX(-2px) rotate(-45deg); }
 .arr.prev { transform: translateX(2px) rotate(135deg); }
 .car { display: grid; grid-auto-flow: column; grid-auto-columns: 88%; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
@@ -193,7 +203,7 @@ form { display: grid; gap: 18px; margin-top: 4px; }
 label, legend { font-size: 14px; font-weight: 600; color: var(--chalk); }
 input, textarea { font: inherit; font-size: 16px; color: var(--s50); background: var(--s900); border: 1px solid var(--s500); border-radius: 3px; padding: 12px; width: 100%;
   transition: border-color .15s var(--ease); }
-input::placeholder, textarea::placeholder { color: var(--s400); opacity: 1; }
+input::placeholder, textarea::placeholder { color: var(--s300); opacity: 1; }
 input:focus, textarea:focus { outline: none; border-color: var(--chalk); box-shadow: 0 0 0 1px var(--chalk); }
 textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 .handle-input { display: flex; align-items: center; background: var(--s900); border: 1px solid var(--s500); border-radius: 3px; padding-left: 12px; }
@@ -247,7 +257,7 @@ textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 .inst-row { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 16px 24px; }
 .inst-row > div { display: grid; gap: 10px; align-content: start; }
 .switch2 { display: inline-grid; grid-template-columns: 1fr 1fr; justify-self: start; padding: 3px; gap: 3px; background: var(--s900); border: 1px solid var(--s600); border-radius: 3px; font-size: 14px; font-weight: 600; }
-.switch2 span { padding: 6px 14px; border-radius: 2px; color: var(--s400); text-align: center; }
+.switch2 span { padding: 6px 14px; border-radius: 2px; color: var(--s300); text-align: center; }
 .switch2 span.on { background: var(--chalk); color: var(--s900); }
 .readout { display: flex; align-items: baseline; gap: 10px; font-size: 14px; color: var(--chalk); line-height: 1.4; }
 .readout b { display: block; font-size: 15px; font-weight: 650; color: var(--s50); }

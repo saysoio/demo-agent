@@ -94,19 +94,26 @@ const field = (() => {
   function ringFrame(t) { draw(t); if (ringAt) requestAnimationFrame(ringFrame) }
 
   // twinkle: a handful of dots one tone brighter, each for under a second
-  setInterval(() => {
-    if (!motion() || ringAt || !dots.length) return
+  let twinkle = 0
+  const twinkleTimer = () => {
+    if (motion() && !twinkle) twinkle = setInterval(sparkle, 180)
+    else if (!motion() && twinkle) { clearInterval(twinkle); twinkle = 0 }
+  }
+  function sparkle() {
+    if (ringAt || !dots.length) return
     const now = performance.now()
     for (const [d, until] of lit) if (until < now) { lit.delete(d); g.clearRect(px(d.x) - 1, px(d.y) - 1, Math.round(ds * dpr) + 2, Math.round(ds * dpr) + 2); dot(d, TONE[d.t]) }
     for (let i = 0; i < 2; i++) { const d = dots[Math.floor(Math.random() * dots.length)]; lit.set(d, now + 500 + Math.random() * 700); dot(d, UP[d.t]) }
-  }, 180)
+  }
 
   let queued = false
   const rebuild = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; build() }) } }
   new ResizeObserver(rebuild).observe(hero)
   for (const e of hero.querySelectorAll('[data-clear]')) new ResizeObserver(rebuild).observe(e)
   document.fonts?.ready.then(rebuild)
-  new IntersectionObserver(([e]) => { visible = e.isIntersecting }).observe(hero)
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; twinkleTimer() }).observe(hero)
+  document.addEventListener('visibilitychange', twinkleTimer)
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', twinkleTimer)
 
   return {
     ring(kind) {
@@ -178,7 +185,7 @@ async function loadPot() {
   const bal = $('balance')
   bal.textContent = p.balance == null ? '…' : amountText(p.balance, p.unit); bal.title = p.balance == null ? '' : `${p.balance} ${p.unit}`
   $('unit').textContent = p.unit
-  for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'money'
+  for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'funds'
   $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`
   $('network').textContent = p.network === 'base' ? `Real ${p.unit} on Base` : `Test ${p.unit} on Base Sepolia, for now`
   setStatus(p.paused ? 'paused' : 'live')
@@ -201,22 +208,24 @@ async function loadPot() {
 const CELLS_MAX = 160
 let ledgerKey = ''
 function ledger(s) {
-  const vendorPaid = Math.max(0, s.paid - s.wins), other = Math.max(0, s.attempts - s.blocked - s.paid)
+  // pending tries (in line or being thought about) have no outcome yet; the rest made no payment at all (ignored,
+  // nothing to pay, no answer, not sent or paused)
+  const pending = s.pending ?? 0, vendorPaid = Math.max(0, s.paid - s.wins), other = Math.max(0, s.attempts - s.blocked - s.paid - pending)
   $('s-attempts').textContent = s.attempts; $('s-blocked').textContent = s.blocked; $('s-paid').textContent = vendorPaid
   $('s-other').textContent = other; $('s-wins').textContent = s.wins
-  const key = [s.attempts, s.blocked, s.paid, s.wins].join()
+  const key = [s.attempts, s.blocked, s.paid, s.wins, pending].join()
   if (key === ledgerKey) return
   ledgerKey = key
   const per = Math.max(1, Math.ceil(s.attempts / CELLS_MAX)), n = x => (x > 0 ? Math.max(1, Math.round(x / per)) : 0)
   const cells = []
-  for (const [count, cls] of [[s.wins, 'win'], [s.blocked, 'block'], [vendorPaid, 'allow'], [other, 'quiet']]) {
+  for (const [count, cls] of [[s.wins, 'win'], [s.blocked, 'block'], [vendorPaid, 'allow'], [other, 'quiet'], [pending, 'wait']]) {
     for (let i = n(count); i > 0; i--) { const c = document.createElement('i'); c.className = cls; cells.push(c) }
   }
   const box = $('cells')
   box.className = `cells${cells.length > 60 ? ' many' : cells.length > 24 ? ' mid' : ''}`
   box.replaceChildren(...cells)
   box.setAttribute('aria-label', s.attempts
-    ? `${s.attempts} tries: ${s.blocked} stopped by Sayso, ${vendorPaid} paid a real vendor, ${other} with nothing to pay, ${s.wins} broke the guard${per > 1 ? `. Each square is about ${per} tries` : ''}`
+    ? `${s.attempts} tries: ${s.blocked} stopped by Sayso, ${vendorPaid} paid a real vendor, ${other} with no payment, ${s.wins} broke the guard${pending ? `, ${pending} waiting` : ''}${per > 1 ? `. Each square is about ${per} tries` : ''}`
     : 'No tries yet')
 }
 
@@ -255,8 +264,13 @@ async function loadRules() {
   const st = $('g-strict')
   for (const s of st.children) s.classList.toggle('on', s.dataset.v === r.strictness)
   st.setAttribute('role', 'img'); st.setAttribute('aria-label', `Strictness: ${r.strictness}`)
-  $('g-mode').textContent = r.sdk.mode === 'enforce' ? 'Enforce mode on' : `${r.sdk.mode} mode`
-  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}${r.sdk.mode === 'enforce' ? ": nothing is signed without Sayso's allow" : ''}`
+  // the enforce claims follow what the rules say; any other mode shows as neutral
+  const enforce = r.sdk.mode === 'enforce'
+  $('g-mode').textContent = enforce ? 'Enforce mode on' : `${r.sdk.mode} mode`
+  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}${enforce ? ": nothing is signed without Sayso's allow" : ": Sayso's verdicts are not enforced"}`
+  $('g-mode-mk').className = `mk${enforce ? ' allow' : ''}`
+  const en = $('g-enforce'); en.className = `status${enforce ? ' live' : ''}`; en.querySelector('.status-t').textContent = enforce ? 'Enforcing' : 'Not enforcing'
+  const w = $('fl-wallet'); w.textContent = enforce ? 'signs only if Sayso says allow' : "signs without waiting for Sayso's allow"; w.hidden = false
   $('g-server-row').hidden = !r.checkServer
   if (r.checkServer) $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
   $('g-signed').textContent = r.signedVerdicts ? 'Every one signed by Sayso. The wallet checks the signature.' : 'Unsigned'
@@ -294,9 +308,11 @@ function trick(a) {
 
 function carButtons() {
   const l = $('t-list'), end = l.scrollWidth - l.clientWidth - 2
-  $('t-prev').disabled = l.scrollLeft <= 2; $('t-next').disabled = l.scrollLeft >= end
+  // aria-disabled, not disabled, so a button at the end keeps keyboard focus
+  $('t-prev').setAttribute('aria-disabled', String(l.scrollLeft <= 2)); $('t-next').setAttribute('aria-disabled', String(l.scrollLeft >= end))
 }
 function carStep(dir) {
+  if ($(dir < 0 ? 't-prev' : 't-next').getAttribute('aria-disabled') === 'true') return
   const l = $('t-list'), card = l.firstElementChild
   if (!card) return
   const gap = parseFloat(getComputedStyle(l).columnGap) || 0

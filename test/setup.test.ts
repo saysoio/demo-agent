@@ -55,20 +55,23 @@ test('the weekly cap must be there, exact and in the asset\'s unit', () => {
   assert.match(compiledProblems({ ...c, weeklyCapUsd: 151 }, usdc).join(), /weekly cap is 151, not 150/)
 })
 
-test('strictness must be normal', () => {
-  assert.match(compiledProblems(compiled({ strictness: 'strict' }), rules).join(), /strictness is strict, not normal/)
-  assert.match(compiledProblems(compiled({ strictness: 'lenient' }), rules).join(), /strictness is lenient, not normal/)
+test('strictness must be strict or normal, never lenient', () => {
+  assert.deepEqual(compiledProblems(compiled({ strictness: 'strict' }), rules), [])
+  assert.match(compiledProblems(compiled({ strictness: 'lenient' }), rules).join(), /strictness is lenient, not strict or normal/)
   assert.match(compiledProblems(compiled({ strictness: undefined }), rules).join(), /strictness is missing/)
+})
+
+test('what sayso compiled on 31 Oct passes: strict, no trading allowlist', () => {
+  assert.deepEqual(compiledProblems(compiled({ strictness: 'strict', allowedTokens: [] }), rules), [])
+  assert.deepEqual(compiledProblems(compiled({ allowedTokens: ['ETH', 'WETH'] }), rules), [])
 })
 
 test('the other checks still hold', () => {
   const one = (x: object) => compiledProblems(compiled(x), rules)
   assert.match(one({ savedAddresses: [VENDORS[0].address] }).join(), /not exactly the vendors/)
   assert.match(one({ allowedActions: ['transfer', 'approve'] }).join(), /not only transfer/)
-  assert.match(one({ allowedTokens: ['ETH', 'USDC'] }).join(), /allowed tokens/)
-  assert.match(one({ allowedTokens: ['ETH', 'ETH'] }).join(), /allowed tokens/)
-  assert.match(one({ allowedTokens: [] }).join(), /allowed tokens are \[\], not only ETH/)
-  assert.match(one({ allowedTokens: null }).join(), /allowed tokens/)
+  assert.match(one({ allowedTokens: ['ETH', 'USDC'] }).join(), /allowed tokens are \[ETH, USDC\], more than ETH and WETH/)
+  assert.match(one({ allowedTokens: ['CBBTC'] }).join(), /allowed tokens/)
   assert.match(one({ maxPerTradeEth: 0.001 }).join(), /per-payment cap/)
   assert.match(one({ dailyCapEth: 0.006 }).join(), /daily cap/)
   assert.match(one({ unresolved: ['something'] }).join(), /could not turn/)

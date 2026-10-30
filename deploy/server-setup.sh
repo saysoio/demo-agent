@@ -294,6 +294,8 @@ fi
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
   || { caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile || true; die "Caddy rejected /etc/caddy/Caddyfile"; }
 say "caddy validate: ok"
+# validate runs as root and opens the access log, creating it root-owned; the caddy user must write it
+chown -R caddy:caddy /var/log/caddy
 sys systemctl enable caddy.service
 sys systemctl reload-or-restart caddy.service
 

@@ -5,6 +5,8 @@ const OUTCOME = {
   invalid: ['nothing to pay', 'quiet'], unavailable: ['not signed (no answer)', 'quiet'], error: ['not sent', 'quiet'], paused: ['game paused', 'quiet'],
 }
 const CHANNEL = { chat: 'team chat' }
+// which of Sayso's checks stopped it: a client-side allowlist of labels, so an unknown value shows nothing
+const RULE = { cap: 'over a cap', 'unknown payee': 'unknown payee', injection: 'injection', judge: 'judge' }
 // the server's limits, sent with the pot; these match it until the first answer
 let limits = { textChars: 600, feedPage: 50 }
 let unit = '', explorerBase = '', oldest = null, newest = 0
@@ -32,6 +34,7 @@ function render(a) {
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.body').textContent = a.body
   const badge = li.querySelector('.badge'), what = li.querySelector('.what')
+  li.querySelector('.rule').textContent = a.status === 'done' && Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
   if (a.status !== 'done') {
     const thinking = a.status === 'thinking'
     tone = 'wait'

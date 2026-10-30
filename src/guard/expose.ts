@@ -4,7 +4,7 @@ import type { Attempt } from '../store.ts'
 
 export const PUBLIC_FIELDS = [
   'id', 'createdAt', 'source', 'handle', 'channel', 'body', 'status', 'action', 'toAddr', 'amount', 'memo', 'thought',
-  'verdict', 'reason', 'outcome', 'note', 'txHash', 'checkMs', 'win', 'doneAt',
+  'verdict', 'reason', 'rule', 'outcome', 'note', 'txHash', 'checkMs', 'win', 'doneAt',
 ] as const satisfies readonly (keyof Attempt)[]
 
 export type PublicAttempt = Pick<Attempt, typeof PUBLIC_FIELDS[number]>

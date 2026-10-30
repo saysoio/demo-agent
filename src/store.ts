@@ -10,6 +10,9 @@ export type Channel = typeof CHANNELS[number]
 export type Source = 'player' | 'vendor'
 export type Status = 'queued' | 'thinking' | 'done'
 export type Outcome = 'paid' | 'blocked' | 'asked' | 'skipped' | 'invalid' | 'unavailable' | 'error' | 'paused'
+/** Which of sayso's checks stopped a payment, in our own words (never the server's text). */
+export const CHECK_RULES = ['cap', 'unknown payee', 'injection', 'judge'] as const
+export type CheckRule = typeof CHECK_RULES[number]
 
 export interface Attempt {
   id: number
@@ -27,6 +30,7 @@ export interface Attempt {
   thought: string | null
   verdict: 'allow' | 'ask' | 'block' | null
   reason: string | null
+  rule: CheckRule | null
   outcome: Outcome | null
   note: string | null
   txHash: string | null
@@ -39,17 +43,17 @@ export interface Attempt {
 
 export interface Result {
   action: Attempt['action']; toAddr: string | null; amount: string | null; memo: string | null; thought: string | null
-  verdict: Attempt['verdict']; reason: string | null; outcome: Outcome; note: string | null; txHash: string | null; checkMs: number | null; win: boolean
+  verdict: Attempt['verdict']; reason: string | null; rule: CheckRule | null; outcome: Outcome; note: string | null; txHash: string | null; checkMs: number | null; win: boolean
 }
 
 const COLS = `id, created_at, source, handle, ip_key, channel, body, status, action, to_addr, amount, memo, thought, verdict, reason,
-  outcome, note, tx_hash, check_ms, win, hidden, done_at`
+  check_rule, outcome, note, tx_hash, check_ms, win, hidden, done_at`
 
 function row(r: any): Attempt {
   return {
     id: Number(r.id), createdAt: Number(r.created_at), source: r.source, handle: r.handle, ipKey: r.ip_key, channel: r.channel, body: r.body,
     status: r.status, action: r.action, toAddr: r.to_addr, amount: r.amount, memo: r.memo, thought: r.thought, verdict: r.verdict,
-    reason: r.reason, outcome: r.outcome, note: r.note, txHash: r.tx_hash, checkMs: r.check_ms === null ? null : Number(r.check_ms),
+    reason: r.reason, rule: r.check_rule ?? null, outcome: r.outcome, note: r.note, txHash: r.tx_hash, checkMs: r.check_ms === null ? null : Number(r.check_ms),
     win: !!r.win, hidden: !!r.hidden, doneAt: r.done_at === null ? null : Number(r.done_at),
   }
 }
@@ -67,11 +71,14 @@ export class Store {
         id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, source TEXT NOT NULL, handle TEXT NOT NULL,
         ip_key TEXT NOT NULL, channel TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued',
         action TEXT, to_addr TEXT, amount TEXT, memo TEXT, thought TEXT, verdict TEXT, reason TEXT, outcome TEXT, note TEXT,
-        tx_hash TEXT, check_ms INTEGER, win INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0, done_at INTEGER
+        tx_hash TEXT, check_ms INTEGER, win INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0, done_at INTEGER,
+        check_rule TEXT
       );
       CREATE INDEX IF NOT EXISTS attempts_status ON attempts (status, id);
       CREATE TABLE IF NOT EXISTS flags (name TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
+    // databases made before check_rule existed
+    if (!(this.db.prepare(`PRAGMA table_info(attempts)`).all() as any[]).some(c => c.name === 'check_rule')) this.db.exec(`ALTER TABLE attempts ADD COLUMN check_rule TEXT`)
     // a restart mid-check leaves rows "thinking": nothing was confirmed for them, so they end as errors
     this.db.prepare(`UPDATE attempts SET status = 'done', outcome = 'error', note = 'the agent restarted during this attempt', done_at = ? WHERE status = 'thinking'`).run(this.now())
   }
@@ -92,8 +99,8 @@ export class Store {
 
   finish(id: number, x: Result) {
     this.db.prepare(`UPDATE attempts SET status = 'done', action = ?, to_addr = ?, amount = ?, memo = ?, thought = ?, verdict = ?, reason = ?,
-      outcome = ?, note = ?, tx_hash = ?, check_ms = ?, win = ?, done_at = ? WHERE id = ?`)
-      .run(x.action, x.toAddr, x.amount, x.memo, x.thought, x.verdict, x.reason, x.outcome, x.note, x.txHash, x.checkMs, x.win ? 1 : 0, this.now(), id)
+      check_rule = ?, outcome = ?, note = ?, tx_hash = ?, check_ms = ?, win = ?, done_at = ? WHERE id = ?`)
+      .run(x.action, x.toAddr, x.amount, x.memo, x.thought, x.verdict, x.reason, x.rule, x.outcome, x.note, x.txHash, x.checkMs, x.win ? 1 : 0, this.now(), id)
   }
 
   /** These rows by id, newest first, hidden rows left out. */

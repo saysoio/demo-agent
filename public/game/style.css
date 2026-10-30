@@ -165,6 +165,8 @@ textarea { resize: vertical; min-height: 128px; line-height: 1.5; }
 .badge.quiet { background: transparent; color: var(--muted); border: 1px solid var(--edge); }
 .badge.wait { background: transparent; color: var(--ink); border: 1px dashed var(--s400); }
 .badge.wait.thinking::before { content: ""; width: 6px; height: 6px; background: currentColor; animation: blink 1.2s steps(2, jump-none) infinite; }
+.rule { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid var(--edge); border-radius: 2px; font: 400 11px/1 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+.rule:empty { display: none; }
 .reason, .thought { font-size: 14px; color: var(--muted); }
 .reason:empty, .thought:empty { display: none; }
 .lab { font-weight: 600; color: var(--ink); }

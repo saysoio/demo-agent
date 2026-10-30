@@ -53,7 +53,7 @@ test('clientIp believes the header from a listed proxy, not from an unlisted pee
 
 test('the public projection is an allowlist: private and unknown fields never pass', () => {
   const a = { id: 1, createdAt: 0, source: 'player', handle: 'x', ipKey: '1.2.3.4', channel: 'email', body: 'hi', status: 'done', action: null,
-    toAddr: null, amount: null, memo: null, thought: null, verdict: null, reason: null, outcome: null, note: null, txHash: null, checkMs: null,
+    toAddr: null, amount: null, memo: null, thought: null, verdict: null, reason: null, rule: null, outcome: null, note: null, txHash: null, checkMs: null,
     win: false, hidden: true, doneAt: null, futureSecret: 'leak' } as Attempt & { futureSecret: string }
   const p = publicAttempt(a)
   assert.deepEqual(Object.keys(p), [...PUBLIC_FIELDS])

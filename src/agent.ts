@@ -51,7 +51,7 @@ export class Agent {
   }
 
   private async handle(a: Attempt): Promise<Result> {
-    const base: Result = { action: null, toAddr: null, amount: null, memo: null, thought: null, verdict: null, reason: null, outcome: 'error', note: null, txHash: null, checkMs: null, win: false }
+    const base: Result = { action: null, toAddr: null, amount: null, memo: null, thought: null, verdict: null, reason: null, rule: null, outcome: 'error', note: null, txHash: null, checkMs: null, win: false }
     if (this.paused()) return { ...base, outcome: 'paused', note: 'the game was paused before this item was read' }
     let d: Decision
     try { d = await this.o.brain.decide({ channel: a.channel, from: a.handle, body: a.body }) } catch (e) {
@@ -76,7 +76,7 @@ export class Agent {
       this.pause(`sayso allowed more than the per-payment cap in attempt #${a.id}`)
       this.o.log?.(`ALLOW OVER CAP: attempt #${a.id}; the game is paused`)
     }
-    return { ...told, toAddr: c.to, amount: formatUnits(c.amount, this.decimals), verdict: r.verdict, reason: r.reason, outcome: r.outcome, note, txHash: r.txHash, checkMs: r.checkMs, win }
+    return { ...told, toAddr: c.to, amount: formatUnits(c.amount, this.decimals), verdict: r.verdict, reason: r.reason, rule: r.rule, outcome: r.outcome, note, txHash: r.txHash, checkMs: r.checkMs, win }
   }
 
   start(o: { tickMs: number; vendorInvoiceEveryMs: number }) {

@@ -7,13 +7,14 @@ import { base, baseSepolia } from 'viem/chains'
 import { Oathline, OathlineBlocked, OathlineNeedsApproval, OathlineUnavailable, type CheckResult } from 'saysoio'
 import type { Config, Vendor } from './config.ts'
 import { cleanModelText, MODEL_TEXT } from './guard/index.ts'
-import type { Outcome } from './store.ts'
+import type { CheckRule, Outcome } from './store.ts'
 
 export interface PayContext { reason: string; inputs: string[] }
 export interface PayResult {
   outcome: Extract<Outcome, 'paid' | 'blocked' | 'asked' | 'unavailable' | 'error' | 'paused'>
   verdict: 'allow' | 'ask' | 'block' | null
   reason: string | null
+  rule: CheckRule | null
   txHash: Hex | null
   checkMs: number
   note: string | null
@@ -101,7 +102,7 @@ export class SaysoPayer implements Payer {
 
   private async payNow(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
     const t0 = Date.now()
-    if (stop()) return { outcome: 'paused', verdict: null, reason: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
+    if (stop()) return { outcome: 'paused', verdict: null, reason: null, rule: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
     this.ctx = ctx; this.last = null; this.stop = stop
     const tx = this.cfg.token
       ? { to: this.cfg.token, value: 0n, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [getAddress(to), amount] }) }
@@ -124,10 +125,35 @@ export class SaysoPayer implements Payer {
   }
 }
 
-/** sayso's verdict and reason as kept and shown; none for an unverified answer. The reason is cleaned like model text. */
-export function checkView(r: CheckResult | null, outcome: PayResult['outcome']): Pick<PayResult, 'verdict' | 'reason'> {
-  if (!r || outcome === 'unavailable') return { verdict: null, reason: null }
-  return { verdict: isVerdict(r.verdict) ? r.verdict : null, reason: cleanModelText(r.reason, MODEL_TEXT.reason) }
+/** sayso's verdict, reason and rule as kept and shown; none for an unverified answer. The reason is cleaned like model text. */
+export function checkView(r: CheckResult | null, outcome: PayResult['outcome']): Pick<PayResult, 'verdict' | 'reason' | 'rule'> {
+  if (!r || outcome === 'unavailable') return { verdict: null, reason: null, rule: null }
+  return { verdict: isVerdict(r.verdict) ? r.verdict : null, reason: cleanModelText(r.reason, MODEL_TEXT.reason), rule: firedRule(r) }
+}
+
+// sayso's rule ids (apps/api/src/rules/hard.ts); an id not named here shows no tag
+const RULE_IDS = new Map<string, CheckRule>([
+  ['per-trade-cap', 'cap'], ['daily-cap', 'cap'], ['weekly-cap', 'cap'], ['weekly-cap-default', 'cap'],
+  ['recipient-unknown', 'unknown payee'], ['recipient-new', 'unknown payee'],
+])
+
+// sayso's injection thresholds for strictness "normal" (apps/api/src/check.ts:25, THRESHOLDS.normal); setup signs normal
+const INJECTION_BLOCK = 0.65
+const INJECTION_ASK = 0.4
+
+/** Which check stopped it, from the rule ids and the judge's injection score, never from text. Like sayso's own
+ *  decision: a block rule decides a block; with none, the judge did. An ask names injection first, then its rule.
+ *  These fields are not covered by sayso's signed receipt, so they only label the feed. */
+export function firedRule(r: CheckResult): CheckRule | null {
+  if (r.verdict !== 'block' && r.verdict !== 'ask') return null
+  const rules: unknown[] = Array.isArray(r.rules) ? r.rules : []
+  const hit = rules.find((x: any) => x?.verdict === r.verdict && typeof x.id === 'string') as { id: string } | undefined
+  const judge = r.judge && typeof r.judge === 'object' ? r.judge as { injectionTriggered?: unknown } : null
+  const injection = typeof judge?.injectionTriggered === 'number' && judge.injectionTriggered >= (r.verdict === 'block' ? INJECTION_BLOCK : INJECTION_ASK)
+  if (r.verdict === 'ask' && injection) return 'injection'
+  if (hit) return RULE_IDS.get(hit.id.replace(/^owner-override:/, '')) ?? null
+  if (!judge) return null
+  return injection ? 'injection' : 'judge'
 }
 
 /** A stand-in for local runs and tests: "sayso" allows only vendors, up to twice their usual amount. */
@@ -141,13 +167,13 @@ export class FakePayer implements Payer {
   async balance() { return this.bal }
   async confirmed(_hash: Hex) { return true }
   async pay(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
-    if (stop()) return { outcome: 'paused', verdict: null, reason: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
+    if (stop()) return { outcome: 'paused', verdict: null, reason: null, rule: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
     const v = this.vendors.find(x => x.address === getAddress(to))
-    if (!v) return { outcome: 'blocked', verdict: 'block', reason: 'payee is not in the owner\'s vendor list', txHash: null, checkMs: 5, note: null }
-    if (amount > this.toUnits(v.usual) * 2n) return { outcome: 'blocked', verdict: 'block', reason: 'more than the per-payment cap', txHash: null, checkMs: 5, note: null }
-    if (amount > this.bal) return { outcome: 'error', verdict: 'allow', reason: 'allowed', txHash: null, checkMs: 5, note: 'not enough balance' }
+    if (!v) return { outcome: 'blocked', verdict: 'block', reason: 'payee is not in the owner\'s vendor list', rule: 'unknown payee', txHash: null, checkMs: 5, note: null }
+    if (amount > this.toUnits(v.usual) * 2n) return { outcome: 'blocked', verdict: 'block', reason: 'more than the per-payment cap', rule: 'cap', txHash: null, checkMs: 5, note: null }
+    if (amount > this.bal) return { outcome: 'error', verdict: 'allow', reason: 'allowed', rule: null, txHash: null, checkMs: 5, note: 'not enough balance' }
     this.bal -= amount
     this.sent.push({ to: getAddress(to), amount, ctx })
-    return { outcome: 'paid', verdict: 'allow', reason: 'known vendor, within the cap', txHash: `0x${(this.sent.length).toString(16).padStart(64, '0')}`, checkMs: 5, note: null }
+    return { outcome: 'paid', verdict: 'allow', reason: 'known vendor, within the cap', rule: null, txHash: `0x${(this.sent.length).toString(16).padStart(64, '0')}`, checkMs: 5, note: null }
   }
 }

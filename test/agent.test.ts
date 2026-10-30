@@ -197,11 +197,11 @@ test('the rule that fired comes from sayso\'s rule ids and judge scores, in our 
   assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.9) }), 'injection')
   assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.1) }), 'judge')
   assert.equal(rule({ verdict: 'ask', rules: [{ id: 'recipient-new', verdict: 'ask', reason: 'x' }], judge: judge(0.6) }), 'injection')
-  // sayso's normal thresholds: a block needs 0.65, an ask 0.4
-  assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.55) }), 'judge')
-  assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.65) }), 'injection')
-  assert.equal(rule({ verdict: 'ask', rules: [], judge: judge(0.45) }), 'injection')
-  assert.equal(rule({ verdict: 'ask', rules: [], judge: judge(0.35) }), 'judge')
+  // sayso's strict thresholds (the signed mandate's): a block needs 0.5, an ask 0.3
+  assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.45) }), 'judge')
+  assert.equal(rule({ verdict: 'block', rules: [], judge: judge(0.5) }), 'injection')
+  assert.equal(rule({ verdict: 'ask', rules: [], judge: judge(0.35) }), 'injection')
+  assert.equal(rule({ verdict: 'ask', rules: [], judge: judge(0.25) }), 'judge')
   assert.equal(rule({ verdict: 'ask', rules: [{ id: 'recipient-new', verdict: 'ask', reason: 'x' }], judge: judge(0.1) }), 'unknown payee')
   // unknown ids, prototype names, malformed fields and allows show nothing
   assert.equal(rule({ verdict: 'block', rules: [{ id: 'scam-flags', verdict: 'block', reason: 'x' }], judge: judge(0.9) }), null)

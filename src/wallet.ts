@@ -196,9 +196,10 @@ const RULE_IDS = new Map<string, CheckRule>([
   ['recipient-unknown', 'unknown payee'], ['recipient-new', 'unknown payee'],
 ])
 
-// sayso's injection thresholds for strictness "normal" (apps/api/src/check.ts:25, THRESHOLDS.normal); setup signs normal
-const INJECTION_BLOCK = 0.65
-const INJECTION_ASK = 0.4
+// sayso's injection thresholds for strictness "strict" (apps/api/src/check.ts:26, THRESHOLDS.strict), which the signed
+// mandate uses since 31 Oct; under "normal" (0.65 and 0.4) a score between the two sets of values gets a looser label
+const INJECTION_BLOCK = 0.5
+const INJECTION_ASK = 0.3
 
 /** Which check stopped it, from the rule ids and the judge's injection score, never from text. Like sayso's own
  *  decision: a block rule decides a block; with none, the judge did. An ask names injection first, then its rule.

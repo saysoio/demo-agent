@@ -33,6 +33,94 @@ const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); r
 const get = path => fetch(path, { headers: { accept: 'application/json' } }).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
 
 const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+// The dot field behind the hero, after the site's (apps/site/dots.js): dots on one square grid, thinned by an ordered
+// dither, cleared under the text. Drawn once per layout; alive only while on screen and motion is allowed: a few dots
+// brighten now and then, and a verdict that lands while the page is open sends a ring of its colour through the grid.
+const field = (() => {
+  const cv = $('field'), g = cv.getContext?.('2d')
+  if (!g) return { ring() {} }
+  const hero = cv.parentElement
+  const TONE = ['#262F37', '#36424D', '#4F5B67'], UP = ['#4F5B67', '#6E7883', '#9AA2AC']
+  const SHADES = { block: ['#CE585B', '#B95159', '#A74954', '#C9504E'], allow: ['#5AA66C', '#509566', '#528658', '#57A05B'] }
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+  const hash = (x, y) => { let h = Math.imul(x * 374761393 + y * 668265263, 1274126177); h ^= h >>> 13; return ((Math.imul(h, 1103515245) >>> 0) % 10007) / 10007 }
+  let cell = 14, ds = 5, dpr = 1, dots = [], lit = new Map(), visible = false, ringAt = null
+  const motion = () => !still() && visible && !document.hidden
+
+  function build() {
+    const w = hero.clientWidth, h = hero.clientHeight
+    if (!w || !h) return
+    dpr = Math.min(2, devicePixelRatio || 1); cell = w < 600 ? 12 : 14; ds = Math.max(2, Math.round(cell * 0.36))
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr)
+    const cols = Math.ceil(w / cell), rows = Math.ceil(h / cell), box = hero.getBoundingClientRect()
+    // under the text: whole cells cleared, plus a cell of margin
+    const zones = [...hero.querySelectorAll('[data-clear]')].map(e => {
+      const r = e.getBoundingClientRect()
+      return [Math.floor((r.left - box.left) / cell) - 1, Math.ceil((r.right - box.left) / cell) + 1, Math.floor((r.top - box.top) / cell) - 1, Math.ceil((r.bottom - box.top) / cell) + 1]
+    })
+    const blobs = Array.from({ length: Math.max(5, Math.round(cols * rows / 420)) }, (_, i) => ({
+      x: hash(i, 1) * cols, y: hash(i, 2) * rows, sx: 3 + hash(i, 3) * 12, sy: 2.5 + hash(i, 4) * 7, a: 0.45 + hash(i, 5) * 0.7, sq: hash(i, 6) < 0.55,
+    }))
+    dots = []
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      if (zones.some(z => x >= z[0] && x < z[1] && y >= z[2] && y < z[3])) continue
+      let v = (hash(x, y) - 0.5) * 0.4
+      for (const b of blobs) {
+        const dx = Math.abs(x - b.x) / b.sx, dy = Math.abs(y - b.y) / b.sy, d = b.sq ? dx ** 4 + dy ** 4 : dx * dx + dy * dy
+        if (d < 9) v += b.a * Math.exp(-d)
+      }
+      if (v > (BAYER[((y & 3) << 2) + (x & 3)] + 0.5) / 16) dots.push({ x, y, t: v > 1.1 ? 2 : v > 0.42 ? 1 : 0 })
+    }
+    lit.clear(); draw()
+  }
+  const px = c => Math.round((c * cell + (cell - ds) / 2) * dpr)
+  function dot(d, color) { g.fillStyle = color; g.fillRect(px(d.x), px(d.y), Math.round(ds * dpr), Math.round(ds * dpr)) }
+  function draw(now = 0) {
+    g.clearRect(0, 0, cv.width, cv.height)
+    let ox = 0, oy = 0, r = -1, kind = null
+    if (ringAt) {
+      const k = (now - ringAt.t) / 1600
+      if (k >= 1) ringAt = null
+      else { ({ x: ox, y: oy, kind } = ringAt); r = k * ringAt.max }
+    }
+    for (const d of dots) {
+      if (r >= 0) {
+        const off = Math.abs(Math.hypot(d.x - ox, d.y - oy) - r)
+        if (off < 2.2) { const s = SHADES[kind]; dot(d, s[(d.x * 3 + d.y * 5) % 4]); continue }
+      }
+      dot(d, lit.has(d) ? UP[d.t] : TONE[d.t])
+    }
+  }
+  function ringFrame(t) { draw(t); if (ringAt) requestAnimationFrame(ringFrame) }
+
+  // twinkle: a handful of dots one tone brighter, each for under a second
+  setInterval(() => {
+    if (!motion() || ringAt || !dots.length) return
+    const now = performance.now()
+    for (const [d, until] of lit) if (until < now) { lit.delete(d); g.clearRect(px(d.x) - 1, px(d.y) - 1, Math.round(ds * dpr) + 2, Math.round(ds * dpr) + 2); dot(d, TONE[d.t]) }
+    for (let i = 0; i < 2; i++) { const d = dots[Math.floor(Math.random() * dots.length)]; lit.set(d, now + 500 + Math.random() * 700); dot(d, UP[d.t]) }
+  }, 180)
+
+  let queued = false
+  const rebuild = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; build() }) } }
+  new ResizeObserver(rebuild).observe(hero)
+  for (const e of hero.querySelectorAll('[data-clear]')) new ResizeObserver(rebuild).observe(e)
+  document.fonts?.ready.then(rebuild)
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting }).observe(hero)
+
+  return {
+    ring(kind) {
+      if (!kind || !SHADES[kind] || !motion() || !dots.length) return
+      const pot = document.querySelector('.pot').getBoundingClientRect(), box = hero.getBoundingClientRect()
+      const x = (pot.left + pot.width / 2 - box.left) / cell, y = (pot.top + pot.height / 2 - box.top) / cell
+      const max = Math.hypot(Math.max(x, hero.clientWidth / cell - x), Math.max(y, hero.clientHeight / cell - y))
+      const start = !ringAt
+      ringAt = { x, y, kind, max, t: performance.now() }
+      if (start) requestAnimationFrame(ringFrame)
+    },
+  }
+})()
+
 // a line like "Sayso: reason", the label in its own span; both parts as text
 function labelled(el, label, text) {
   el.replaceChildren()
@@ -246,8 +334,10 @@ async function loadFeed() {
   let added = 0
   dropHidden(items)
   for (const a of [...items].reverse()) {
-    const fresh = !shown.has(a.id)
+    const fresh = !shown.has(a.id), was = waiting.has(a.id)
     const li = render(a)
+    // a verdict that lands while the page is open sends a ring through the dot field
+    if (a.status === 'done' && (was || (fresh && !first))) field.ring(a.win || a.outcome === 'blocked' ? 'block' : a.outcome === 'paid' ? 'allow' : null)
     if (fresh && a.id > newest) { list.prepend(li); if (!first) added++ }
     else if (fresh) list.append(li)
     newest = Math.max(newest, a.id); oldest = oldest === null ? a.id : Math.min(oldest, a.id)

@@ -87,8 +87,10 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
 .mark { width: 26px; height: 18px; display: block; flex: none; }
 .brand-game { padding-left: 12px; border-left: 1px solid var(--s600); font-weight: 600; font-size: 15px; color: var(--s300); white-space: nowrap; }
 
-/* hero: the copy and the pot */
+/* hero: the dot field behind, the copy and the pot over it */
 .hero { position: relative; isolation: isolate; padding-block: clamp(32px, 6vw, 88px) clamp(16px, 2vw, 24px); }
+.dots { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; display: block; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
 .hero-in { display: grid; gap: 40px; align-items: center; }
 .hero-copy { display: grid; gap: 24px; justify-items: start; }
 .kicker { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--s300); }

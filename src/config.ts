@@ -38,7 +38,7 @@ export interface Config {
   dataDir: string
   tickMs: number
   vendorInvoiceEveryMs: number
-  /** ceiling on the fee per gas, in gwei (saysoio 0.6.3 does not bound fees) */
+  /** ceiling on the fee per gas, in gwei; also sets saysoio's fee bounds (src/wallet.ts `feeBounds`) */
   maxFeeGwei: string
   /** the signed per-payment cap as text, in the asset's unit (required on base): an allow above it pauses the game */
   maxPerPayment: string | null

@@ -1,10 +1,12 @@
 // The agent's wallet: a viem client on a Coinbase CDP server-wallet account (the key never leaves Coinbase), guarded by
-// the saysoio SDK in enforce mode. The code never pre-filters a payment: sayso decides. A block, an ask (nobody on duty
-// to approve), or a slow or unverifiable answer all mean "not signed".
-import { createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, getAddress, http, parseGwei, type Account, type Address, type Chain, type Hex } from 'viem'
+// the saysoio SDK (0.7.0) in enforce mode. The code never pre-filters a payment: sayso decides. A block, an ask (nobody on
+// duty to approve), or a slow or unverifiable answer all mean "not signed". Since 0.7.0 the SDK signs only on sayso's
+// signed allow for that very request and refuses every outage, timeout and unverified answer itself (`failClosed` is
+// ignored, so it is no longer set); the signer below also refuses anything that has no verified allow in hand, and anything once the game is paused.
+import { createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, getAddress, http, parseGwei, type Account, type Address, type Chain, type Hex, type Transport } from 'viem'
 import { toAccount } from 'viem/accounts'
 import { base, baseSepolia } from 'viem/chains'
-import { Oathline, OathlineBlocked, OathlineNeedsApproval, OathlineUnavailable, type CheckResult } from 'saysoio'
+import { DEFAULT_FEE_BOUNDS, Oathline, OathlineBlocked, OathlineNeedsApproval, OathlineUnavailable, type CheckResult, type Decision, type FeeBounds } from 'saysoio'
 import type { Config, Vendor } from './config.ts'
 import { cleanModelText, MODEL_TEXT } from './guard/index.ts'
 import type { CheckRule, Outcome } from './store.ts'
@@ -30,6 +32,31 @@ export interface Payer {
 
 class GamePaused extends Error { constructor() { super('the game was paused before signing'); this.name = 'GamePaused' } }
 class FeesTooHigh extends Error { constructor() { super('network fees are above DEMO_MAX_FEE_GWEI'); this.name = 'FeesTooHigh' } }
+class NoVerifiedAllow extends Error { constructor() { super('no verified allow from sayso for this payment'); this.name = 'NoVerifiedAllow' } }
+
+/** Test seams only: main.ts passes none. `signer` names the key sayso's verdicts must be signed by (the SDK's built-in
+ *  one for sayso's servers otherwise). */
+export interface PayerTesting { fetch?: typeof fetch; signer?: Address; transport?: Transport }
+
+/** the gas limit the box sets on every send */
+export const gasLimit = (token: Address | null): bigint => (token ? 100_000n : 21_000n)
+
+const min = (a: bigint, b: bigint) => (a < b ? a : b)
+
+/** The bounds saysoio 0.7.0 puts on the fee of every signed transaction, tightened to DEMO_MAX_FEE_GWEI: the priority fee
+ *  at most the ceiling, gas x fee at most our gas limit x the ceiling, and an hour of fees at most 60 such payments. The
+ *  SDK has no fixed per-gas ceiling (its bound follows the base fee), so `fees()` below keeps ours as well. */
+export function feeBounds(maxFeeGwei: string, token: Address | null): Required<FeeBounds> {
+  const cap = parseGwei(maxFeeGwei)
+  if (cap <= 0n) throw new Error('DEMO_MAX_FEE_GWEI must be above 0')
+  const perTx = gasLimit(token) * cap
+  return {
+    maxFeeMultiple: DEFAULT_FEE_BOUNDS.maxFeeMultiple,
+    maxPriorityFeePerGas: min(cap, DEFAULT_FEE_BOUNDS.maxPriorityFeePerGas),
+    maxFeeWei: min(perTx, DEFAULT_FEE_BOUNDS.maxFeeWei),
+    hourlyFeeWei: min(perTx * 60n, DEFAULT_FEE_BOUNDS.hourlyFeeWei),
+  }
+}
 
 export const chainFor = (chainId: number): Chain => {
   if (chainId === base.id) return base
@@ -47,30 +74,48 @@ export class SaysoPayer implements Payer {
   private queue: Promise<unknown> = Promise.resolve()
   private ctx: PayContext = { reason: '', inputs: [] }
   private last: CheckResult | null = null
+  /** set when the SDK reports a verified allow ('signed') for the payment in progress; the signer needs it */
+  private allowed = false
+  /** the SDK's own refusal after sayso's allow (a fee out of bounds, signed bytes that are not the checked transaction) */
+  private refusedAfterAllow: CheckResult | null = null
 
   private stop: () => boolean = () => true
 
-  constructor(cfg: Config, account: Account) {
+  constructor(cfg: Config, account: Account, testing: PayerTesting = {}) {
     this.cfg = cfg
     this.address = getAddress(account.address)
     const chain = chainFor(cfg.chainId)
+    // No onAsk: an ask is not approved unless the owner approves it on their own channel at sayso (0.7.0 warns about a
+    // local hook in enforce mode). The check timeout is the SDK's default, 10 s; a slower check is refused.
     const oathline = new Oathline({
-      apiUrl: cfg.saysoApi, apiKey: cfg.secrets.sayso, chainId: cfg.chainId, mode: 'enforce', failClosed: true, signatures: 'refuse',
-      onAsk: async () => false,
+      apiUrl: cfg.saysoApi, apiKey: cfg.secrets.sayso, chainId: cfg.chainId, mode: 'enforce', signatures: 'refuse',
+      fees: feeBounds(cfg.maxFeeGwei, cfg.token),
       context: () => ({ reason: this.ctx.reason, inputs: this.ctx.inputs }),
-      onDecision: (result: CheckResult) => { this.last = result },
+      onDecision: (result: CheckResult, _tx: unknown, decision: Decision) => this.decided(result, decision),
+      ...(testing.fetch ? { fetch: testing.fetch } : {}),
+      ...(testing.signer ? { signer: testing.signer } : {}),
     })
     if (account.type !== 'local' || !account.signTransaction) throw new Error('the agent account must sign transactions itself')
     const inner = account
-    // the pause once more between sayso's allow and the signature (an admin pause during a check stops it here)
+    // the pause once more between sayso's allow and the signature (an admin pause during a check stops it here), and
+    // no signature at all without the SDK's verified allow for this payment
     const signer = toAccount({
       address: inner.address,
       signMessage: () => Promise.reject(new Error('the agent signs no messages')),
       signTypedData: () => Promise.reject(new Error('the agent signs no typed data')),
-      signTransaction: (tx, o) => (this.stop() ? Promise.reject(new GamePaused()) : inner.signTransaction!(tx, o)),
+      signTransaction: (tx, o) => (this.stop() ? Promise.reject(new GamePaused()) : !this.allowed ? Promise.reject(new NoVerifiedAllow()) : inner.signTransaction!(tx, o)),
     })
-    this.guarded = oathline.guard(createWalletClient({ account: signer, chain, transport: http(cfg.rpcUrl) }))
-    this.reader = createPublicClient({ chain, transport: http(cfg.rpcUrl) })
+    const transport = testing.transport ?? http(cfg.rpcUrl)
+    this.guarded = oathline.guard(createWalletClient({ account: signer, chain, transport }))
+    this.reader = createPublicClient({ chain, transport })
+  }
+
+  /** onDecision: sayso's answer (or the SDK's refusal for want of one), then, after an allow, any refusal of the SDK's own */
+  private decided(result: CheckResult, decision: Decision): void {
+    if (this.allowed) { if (decision === 'refused') this.refusedAfterAllow = result; return }
+    this.last = result
+    // 'signed' comes only with a verified allow (sayso's, or the owner's approval at sayso); never 'shadow' in enforce
+    if (decision === 'signed') this.allowed = true
   }
 
   balance(): Promise<bigint> {
@@ -85,12 +130,13 @@ export class SaysoPayer implements Payer {
   /** read through a method: onDecision sets it during the send, which flow analysis cannot see */
   private lastCheck(): CheckResult | null { return this.last }
 
-  /** saysoio 0.6.3 does not bound fees itself: a gas limit per kind of send and a ceiling on the fee per gas. */
+  /** Defence in depth next to the SDK's fee bounds: our gas limit (the SDK would take the node's estimate) and a fixed
+   *  ceiling on the fee per gas, checked before sayso is asked, so a fee spike is not checked and not signed. */
   private async fees(): Promise<{ gas: bigint; maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
     const cap = parseGwei(this.cfg.maxFeeGwei)
     const est = await this.reader.estimateFeesPerGas()
     if (est.maxFeePerGas > cap) throw new FeesTooHigh()
-    return { gas: this.cfg.token ? 100_000n : 21_000n, maxFeePerGas: est.maxFeePerGas, maxPriorityFeePerGas: est.maxPriorityFeePerGas < est.maxFeePerGas ? est.maxPriorityFeePerGas : est.maxFeePerGas }
+    return { gas: gasLimit(this.cfg.token), maxFeePerGas: est.maxFeePerGas, maxPriorityFeePerGas: est.maxPriorityFeePerGas < est.maxFeePerGas ? est.maxPriorityFeePerGas : est.maxFeePerGas }
   }
 
   /** One payment at a time, so each check sees the wallet as it will be signed. */
@@ -103,7 +149,7 @@ export class SaysoPayer implements Payer {
   private async payNow(to: Address, amount: bigint, ctx: PayContext, stop: () => boolean): Promise<PayResult> {
     const t0 = Date.now()
     if (stop()) return { outcome: 'paused', verdict: null, reason: null, rule: null, txHash: null, checkMs: 0, note: 'the game is paused; not checked, not signed' }
-    this.ctx = ctx; this.last = null; this.stop = stop
+    this.ctx = ctx; this.last = null; this.allowed = false; this.refusedAfterAllow = null; this.stop = stop
     const tx = this.cfg.token
       ? { to: this.cfg.token, value: 0n, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [getAddress(to), amount] }) }
       : { to: getAddress(to), value: amount, data: '0x' as Hex }
@@ -114,13 +160,15 @@ export class SaysoPayer implements Payer {
     } catch (e) {
       if (e instanceof GamePaused || (e as Error)?.cause instanceof GamePaused) { outcome = 'paused'; note = 'the game was paused before signing; not signed' }
       else if (e instanceof FeesTooHigh) { outcome = 'error'; note = 'network fees are above the ceiling; not checked, not signed' }
+      else if (e instanceof NoVerifiedAllow || (e as Error)?.cause instanceof NoVerifiedAllow) { outcome = 'error'; note = 'no verified allow from Sayso; not signed' }
+      else if (e instanceof OathlineBlocked && this.refusedAfterAllow) { outcome = 'error'; note = 'allowed by Sayso, but the SDK refused the signed transaction (fee above the bound, or not the checked one); not sent' }
       else if (e instanceof OathlineBlocked) outcome = 'blocked'
       else if (e instanceof OathlineNeedsApproval) outcome = 'asked'
       else if (e instanceof OathlineUnavailable) { outcome = 'unavailable'; note = 'no verified answer from Sayso in time; not signed' }
       else if (this.lastCheck()?.verdict === 'allow') { outcome = 'error'; note = 'allowed by Sayso, but the network did not accept the transaction' }
       else { outcome = 'error'; note = 'not signed (wallet error)' }
     }
-    this.stop = () => true
+    this.stop = () => true; this.allowed = false
     return { outcome, txHash, note, checkMs: Date.now() - t0, ...checkView(this.lastCheck(), outcome) }
   }
 }

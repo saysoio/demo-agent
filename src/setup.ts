@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { formatUnits, getAddress, parseUnits, type Address, type Hex } from 'viem'
 import { privateKeyToAccount, toAccount } from 'viem/accounts'
-import { compileMandate, providerSigner, registerWallet, setCheckMode, setMandate } from 'saysoio'
+import { compileMandate, providerSigner, registerWallet, setCheckMode, setMandate, type CallOptions } from 'saysoio'
 import { decimalsFor, loadConfig, unitName, type Asset, type Vendor } from './config.ts'
 
 export interface Published { text: string; vendors: Address[]; max: string; daily: string; weekly: string; asset: Asset }
@@ -93,7 +93,8 @@ export async function switchEnforce(set: () => Promise<unknown>, log: (s: string
   try { await set(); return true } catch (e) {
     if (!needsTelegram(e)) throw e
     log('note: sayso\'s server-side enforce switch needs a linked Telegram chat, and none is linked; it stays off. '
-      + 'The box enforces anyway: its SDK runs in enforce mode (src/wallet.ts), so a block or an ask is never signed.')
+      + 'The box enforces anyway: its SDK (saysoio 0.7.0) runs in enforce mode (src/wallet.ts), so a block, an ask or a check '
+      + 'without a signed answer is never signed.')
     return false
   }
 }
@@ -126,10 +127,10 @@ async function main() {
   if (problems.length) throw new Error(`the compiled rules are not the published ones, so nothing was signed:\n- ${problems.join('\n- ')}`)
   if (!(await confirmed())) throw new Error('not confirmed; nothing was registered or signed')
 
-  const opts = { chainId: cfg.chainId, ...(env.DEMO_INVITE ? { invite: env.DEMO_INVITE } : {}) }
-  const { apiKey } = await registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts as any)
-  await setMandate(cfg.saysoApi, owner, agent.address, rules.text, { ...compiled, summary: rules.text }, opts as any)
-  const switched = await switchEnforce(() => setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts as any))
+  const opts: CallOptions = { chainId: cfg.chainId, ...(env.DEMO_INVITE ? { invite: env.DEMO_INVITE } : {}) }
+  const { apiKey } = await registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts)
+  await setMandate(cfg.saysoApi, owner, agent.address, rules.text, { ...compiled, summary: rules.text }, opts)
+  const switched = await switchEnforce(() => setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts))
   mkdirSync(cfg.dataDir, { recursive: true })
   const file = join(cfg.dataDir, 'sayso-api-key')
   writeFileSync(file, `${apiKey}\n`, { mode: 0o600 })

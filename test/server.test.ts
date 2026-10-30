@@ -111,6 +111,18 @@ test('the stopped tricks show an excerpt, the payee, the amount and sayso\'s rul
   assert.equal(await fresh(), false)
 })
 
+test('the directory names each vendor\'s identities and the colleagues, and nothing else', async () => {
+  const r = await fetch(url + '/api/directory')
+  assert.equal(r.status, 200)
+  const d = await r.json() as any
+  assert.deepEqual(Object.keys(d), ['vendors', 'colleagues'])
+  assert.equal(d.vendors.length, cfg.vendors.length)
+  assert.deepEqual(Object.keys(d.vendors[0]), ['name', 'email', 'website', 'x', 'wallet', 'usual'])
+  assert.equal(d.vendors[0].wallet, cfg.vendors[0].address)
+  assert.ok(d.vendors.every((v: any) => v.email.endsWith('.example') && v.x.endsWith('_demo')))
+  assert.deepEqual(Object.keys(d.colleagues[0]), ['name', 'role', 'chat'])
+})
+
 test('the pot names no source until DEMO_SOURCE_URL is set', async () => {
   const pot = await (await fetch(url + '/api/pot')).json() as any
   assert.equal(pot.source, null)

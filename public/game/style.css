@@ -23,13 +23,14 @@
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; background: var(--s900); scroll-padding-top: 80px; scrollbar-color: var(--s600) var(--s900); }
 body { margin: 0; background: var(--s900); color: var(--chalk); font: 400 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; overflow-x: hidden; }
-h1, h2, h3, p, ol, ul, dl, dd, figure { margin: 0; }
+h1, h2, h3, h4, p, ol, ul, dl, dd, figure { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
 a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 code, .mono { font-family: var(--mono); font-size: .92em; }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--chalk); outline-offset: 3px; }
 [tabindex="-1"]:focus { outline: none; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .skip { position: absolute; left: 12px; top: -60px; z-index: 30; padding: 8px 12px; border-radius: 3px; background: var(--chalk); color: var(--s900); font-weight: 650; }
 .skip:focus { top: 12px; }
 .wrap { width: 100%; max-width: 1240px; margin-inline: auto; padding-inline: var(--gut); }
@@ -177,7 +178,7 @@ main > .hero + .wrap { margin-top: clamp(24px, 3vw, 40px); }
   scrollbar-width: thin; padding-bottom: 10px; }
 @media (min-width: 640px) { .car { grid-auto-columns: calc((100% - 12px) / 2); } }
 @media (min-width: 1040px) { .car { grid-auto-columns: calc((100% - 32px) / 3); gap: 16px; } }
-.trick { scroll-snap-align: start; display: grid; grid-template-rows: auto 1fr auto auto auto; gap: 14px; padding: 20px; background: var(--s800); border: 1px solid var(--s600); border-radius: 6px; min-width: 0; }
+.trick { scroll-snap-align: start; display: grid; grid-template-rows: auto auto 1fr auto auto auto; gap: 14px; padding: 20px; background: var(--s800); border: 1px solid var(--s600); border-radius: 6px; min-width: 0; }
 .trick .meta { padding-bottom: 12px; border-bottom: 1px solid var(--s700); }
 .t-body { color: var(--s50); font-size: 17px; line-height: 1.5; font-weight: 500; text-wrap: pretty; }
 .t-body::before { content: "\201C"; } .t-body::after { content: "\201D"; }
@@ -197,7 +198,7 @@ main > .hero + .wrap { margin-top: clamp(24px, 3vw, 40px); }
 @media (min-width: 480px) { .panel { padding: 28px; } }
 
 /* form */
-form { display: grid; gap: 18px; margin-top: 4px; }
+form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 4px; }
 .field { display: grid; gap: 8px; }
 .field-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 label, legend { font-size: 14px; font-weight: 600; color: var(--chalk); }
@@ -229,6 +230,43 @@ textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 .play .btn-p { width: 100%; }
 .msg { min-height: 1.5em; font-size: 14px; color: var(--s200); }
 .msg.bad { color: var(--stop); }
+
+/* the sender: who the agent is told the message is from */
+.lab-hint { font-weight: 400; color: var(--s300); }
+#from { text-overflow: ellipsis; }
+
+/* the directory: a recessed card of who's who, each detail a chip with its own copy button */
+.dir { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 14px; background: var(--s900); border: 1px solid var(--s700); border-radius: 3px; min-width: 0; }
+.dir-sub { font-size: 13px; color: var(--s300); text-wrap: pretty; }
+.dir-list { display: grid; }
+.dir-v { display: grid; gap: 8px; padding-block: 10px; border-top: 1px solid var(--s700); min-width: 0; }
+.dir-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.dir-name { font-size: 15px; font-weight: 650; color: var(--s50); }
+.dir-usual { font: 400 12px/1 var(--mono); color: var(--s300); white-space: nowrap; }
+.dir-h4 { padding-top: 12px; border-top: 1px solid var(--s700); font-size: 13px; font-weight: 600; color: var(--s300); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.chip { display: inline-flex; align-items: stretch; max-width: 100%; min-width: 0; height: 30px; border: 1px solid var(--s600); border-radius: 3px; background: var(--s800); }
+.chip-v { display: flex; align-items: center; min-width: 0; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: 400 12px/1 var(--mono); color: var(--chalk); background: none; border: 0; border-radius: 2px 0 0 2px; }
+span.chip-v { display: block; line-height: 28px; }
+button.chip-v { cursor: pointer; text-decoration: underline; text-decoration-color: var(--s500); text-underline-offset: 3px; }
+button.chip-v:hover { color: var(--s50); text-decoration-color: var(--chalk); }
+.chip-cp { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 30px; padding: 0 9px; border: 0; border-left: 1px solid var(--s600);
+  border-radius: 0 2px 2px 0; background: none; color: var(--s300); cursor: pointer; transition: color .15s var(--ease), background-color .15s var(--ease); }
+.chip-cp:hover { color: var(--s50); background: var(--s700); }
+.chip-v:focus-visible, .chip-cp:focus-visible { outline-offset: -2px; }
+/* two sheets, one over the other */
+.cp-i { position: relative; width: 8px; height: 9px; border: 1.5px solid currentColor; border-radius: 1px; translate: 1px 1px; }
+.cp-i::before { content: ""; position: absolute; left: -4.5px; top: -4.5px; width: 8px; height: 9px; border-left: 1.5px solid currentColor; border-top: 1.5px solid currentColor; border-radius: 1px 0 0 0; }
+.cp-t { font: 600 12px/1 var(--sans); }
+.cp-t:empty { display: none; }
+.chip-cp.done { color: var(--ok); }
+.chip-cp.done .cp-i { display: none; }
+.dir-team { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.dir-team li { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.dir-team .chip { flex: none; }
+.dir-role { font-size: 13px; color: var(--s300); }
+@media (max-width: 479px) { .dir { padding: 12px; } .chips { gap: 5px; } .chip { height: 34px; } span.chip-v { line-height: 32px; } .chip-v { padding: 0 7px; font-size: 11.5px; } .chip-cp { padding: 0 7px; } }
 
 /* the security layer, as readouts */
 .guard .status { text-transform: none; }
@@ -296,6 +334,9 @@ textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 .chan { font-size: 13px; color: var(--s300); white-space: nowrap; }
 .meta time { margin-left: auto; font: 400 12px/1 var(--mono); color: var(--s300); white-space: nowrap; }
 .body { white-space: pre-wrap; color: var(--chalk); }
+.from { font: 400 12.5px/1.45 var(--mono); color: var(--s200); }
+.from .lab { font: 650 13px/1 var(--sans); color: var(--s300); }
+.from:empty { display: none; }
 .result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
 .what { font-family: var(--mono); font-size: 12px; color: var(--s200); }
 .what a { color: var(--s50); }

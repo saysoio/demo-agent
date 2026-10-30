@@ -24,6 +24,10 @@ export const VENDOR_FIELDS = ['name', 'address'] as const
 export const LIMIT_FIELDS = ['textChars', 'feedPage'] as const
 export const SDK_FIELDS = ['name', 'version', 'mode'] as const
 
+/** The directory: each vendor's official identities and the colleagues in the team chat, all made up (src/directory.ts). */
+export const DIRECTORY_VENDOR_FIELDS = ['name', 'email', 'website', 'x', 'wallet', 'usual'] as const
+export const COLLEAGUE_FIELDS = ['name', 'role', 'chat'] as const
+
 /** A stopped trick shows the player text as a short excerpt, never in full. */
 export const TRICK_FIELDS = ['id', 'createdAt', 'handle', 'from', 'channel', 'toAddr', 'amount', 'rule', 'reason'] as const satisfies readonly (keyof Attempt)[]
 export const TRICK_EXCERPT = 140
@@ -48,6 +52,10 @@ export function publicRules(r: Partial<Record<typeof RULES_FIELDS[number], unkno
     ...pick(r, RULES_FIELDS), vendors: subs(r.vendors, VENDOR_FIELDS), sdk: sub(r.sdk, SDK_FIELDS),
     actions: Array.isArray(r.actions) ? r.actions.filter(a => typeof a === 'string') : [],
   }
+}
+
+export function publicDirectory(d: { vendors?: unknown; colleagues?: unknown }) {
+  return { vendors: subs(d.vendors, DIRECTORY_VENDOR_FIELDS), colleagues: subs(d.colleagues, COLLEAGUE_FIELDS) }
 }
 
 /** Text on one line, clipped to n characters with an ellipsis. */

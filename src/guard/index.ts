@@ -3,7 +3,7 @@
 // wallet.ts and main.ts call into this and hold no checks of their own.
 export { AdminGate, tokenOk, type AdminRefusal } from './admin.ts'
 export {
-  excerpt, LIMIT_FIELDS, POT_FIELDS, SDK_FIELDS, STATS_FIELDS, VENDOR_FIELDS, PUBLIC_FIELDS, publicAttempt, publicPot, publicRules, publicTrick, RULES_FIELDS, TRICK_EXCERPT, TRICK_FIELDS, type PublicAttempt,
+  COLLEAGUE_FIELDS, DIRECTORY_VENDOR_FIELDS, excerpt, LIMIT_FIELDS, POT_FIELDS, SDK_FIELDS, STATS_FIELDS, VENDOR_FIELDS, PUBLIC_FIELDS, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RULES_FIELDS, TRICK_EXCERPT, TRICK_FIELDS, type PublicAttempt,
 } from './expose.ts'
 export {
   BodyRefused, boundedInt, cleanHandle, cleanText, FEED_PAGE, MAX_BODY, MAX_FROM_CHARS, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseFeedQuery,

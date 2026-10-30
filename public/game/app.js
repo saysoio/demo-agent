@@ -142,6 +142,7 @@ function render(a) {
   li.querySelector('.who').textContent = a.source === 'vendor' ? `${a.handle}, our vendor` : `@${a.handle}`
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
+  labelled(li.querySelector('.from'), 'From', a.from ?? '')
   li.querySelector('.body').textContent = a.body
   const badge = li.querySelector('.badge'), what = li.querySelector('.what')
   li.querySelector('.rule').textContent = a.status === 'done' && Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
@@ -299,6 +300,7 @@ function trick(a) {
   li.querySelector('.who').textContent = `@${a.handle}`
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
+  labelled(li.querySelector('.from'), 'From', a.from ?? '')
   li.querySelector('.t-body').textContent = a.excerpt
   li.querySelector('.what').textContent = a.toAddr ? `${a.amount} ${unit} to ${short(a.toAddr)}` : ''
   li.querySelector('.rule').textContent = Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
@@ -398,11 +400,11 @@ try { $('handle').value = localStorage.getItem('handle') ?? '' } catch { /* stor
 $('form').addEventListener('submit', async e => {
   e.preventDefault()
   const msg = $('msg'), btn = $('send')
-  const handle = $('handle').value.trim(), text = $('text').value
+  const handle = $('handle').value.trim(), text = $('text').value, from = $('from').value.trim()
   const channel = new FormData($('form')).get('channel')
   btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'msg'
   try {
-    const r = await fetch('/api/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handle, channel, text }) })
+    const r = await fetch('/api/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handle, channel, from, text }) })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.error ?? `error ${r.status}`)
     try { localStorage.setItem('handle', handle) } catch { /* storage blocked */ }
@@ -412,12 +414,116 @@ $('form').addEventListener('submit', async e => {
   } catch (err) { msg.textContent = err.message; msg.className = 'msg bad' } finally { btn.disabled = false }
 })
 
+// The directory: who the player can pose as. A name, address or handle fills From (switching to a channel it fits);
+// every detail has its own copy button. All of it is set as text.
+let people = { vendors: [], colleagues: [] }
+// what a directory pick put in From, so a channel change can swap it for the same sender's identity on the new channel
+let picked = null
+const SENDER = {
+  email: { hint: '(email address)', ph: d => d.vendors[0]?.email ?? 'billing@northwind-hosting.example' },
+  invoice: { hint: '(name and email)', ph: d => (d.vendors[0] ? `${d.vendors[0].name} <${d.vendors[0].email}>` : 'Northwind Hosting <billing@northwind-hosting.example>') },
+  post: { hint: '(X handle)', ph: d => d.vendors[0]?.x ?? '@northwind_demo' },
+  chat: { hint: '(name in the team chat)', ph: d => d.colleagues[0]?.name ?? 'Dana Okafor' },
+}
+const channelNow = () => new FormData($('form')).get('channel')
+// the sender a vendor or colleague would be on a channel, or null when they are not on it
+function identity(who, ch) {
+  if (who.kind === 'colleague') return ch === 'chat' ? who.p.name : null
+  if (ch === 'email') return who.p.email
+  if (ch === 'invoice') return `${who.p.name} <${who.p.email}>`
+  if (ch === 'post') return who.p.x
+  return null
+}
+function senderField() {
+  const ch = channelNow(), s = SENDER[ch] ?? SENDER.email
+  $('from-label').querySelector('.lab-hint').textContent = s.hint
+  $('from').placeholder = s.ph(people)
+}
+function say(text) { const l = $('dir-live'); l.textContent = ''; setTimeout(() => { l.textContent = text }, 30) }
+
+function useSender(who, ch) {
+  const r = $('form').querySelector(`input[name="channel"][value="${ch}"]`)
+  if (r && !r.checked) r.checked = true
+  const v = identity(who, ch)
+  $('from').value = v; picked = { who, value: v }
+  senderField()
+  say(`Sending as ${v}`)
+}
+
+// copy, with a fallback that selects the text so the player can copy it by hand
+async function copy(btn, text, valueEl) {
+  try {
+    await navigator.clipboard.writeText(text)
+    btn.classList.add('done'); btn.querySelector('.cp-t').textContent = 'Copied'
+    say(`Copied ${text}`)
+    clearTimeout(btn.t); btn.t = setTimeout(() => { btn.classList.remove('done'); btn.querySelector('.cp-t').textContent = '' }, 1600)
+  } catch {
+    const sel = getSelection(), range = document.createRange()
+    range.selectNodeContents(valueEl); sel.removeAllRanges(); sel.addRange(range)
+    say('Copy is blocked here. The text is selected: copy it with your keyboard.')
+  }
+}
+
+// one detail: its value (a button when it can be a sender) and a copy button
+function chip(o) {
+  const c = el('span', `chip${o.kind ? ` chip-${o.kind}` : ''}`)
+  let v
+  if (o.use) {
+    v = el('button', 'chip-v', o.shown ?? o.value); v.type = 'button'
+    v.setAttribute('aria-label', `Send as ${o.value}`)
+    v.addEventListener('click', o.use)
+  } else v = el('span', 'chip-v', o.shown ?? o.value)
+  if (o.shown) v.title = o.value
+  const b = el('button', 'chip-cp'); b.type = 'button'
+  b.setAttribute('aria-label', `Copy ${o.label}`)
+  b.append(el('i', 'cp-i'), el('span', 'cp-t'))
+  b.addEventListener('click', () => copy(b, o.value, v))
+  c.append(v, b)
+  return c
+}
+
+async function loadDirectory() {
+  people = await get('/api/directory')
+  const list = $('dir-vendors'); list.replaceChildren()
+  for (const p of people.vendors) {
+    const who = { kind: 'vendor', p }
+    const li = el('li', 'dir-v'), top = el('div', 'dir-top')
+    top.append(el('span', 'dir-name', p.name), el('span', 'dir-usual', `usually ${p.usual} ${unit}`.trim()))
+    const chips = el('div', 'chips')
+    chips.append(
+      chip({ value: p.email, label: `${p.name}'s billing email`, kind: 'mail', use: () => useSender(who, channelNow() === 'invoice' ? 'invoice' : 'email') }),
+      chip({ value: p.x, label: `${p.name}'s X handle`, kind: 'x', use: () => useSender(who, 'post') }),
+      chip({ value: p.wallet, shown: short(p.wallet), label: `${p.name}'s wallet address`, kind: 'wallet' }),
+      chip({ value: p.website, label: `${p.name}'s website`, kind: 'web' }),
+    )
+    li.append(top, chips); list.append(li)
+  }
+  const team = $('dir-team'); team.replaceChildren()
+  for (const p of people.colleagues) {
+    const li = el('li')
+    li.append(chip({ value: p.name, label: `${p.name}'s name`, use: () => useSender({ kind: 'colleague', p }, 'chat') }), el('span', 'dir-role', p.role))
+    team.append(li)
+  }
+  senderField()
+}
+
+for (const r of document.querySelectorAll('input[name="channel"]')) r.addEventListener('change', () => {
+  // a sender picked from the directory follows the channel: the same vendor's handle on a post, and so on
+  if (picked && $('from').value === picked.value) {
+    const v = identity(picked.who, channelNow())
+    $('from').value = v ?? ''; picked = v ? { who: picked.who, value: v } : null
+  }
+  senderField()
+})
+
 const tick = () => Promise.all([loadPot(), loadFeed()]).catch(() => { setStatus('offline'); feedStatus('Offline, retrying') })
 setInterval(() => { if (!document.hidden) tick() }, 4000)
 const rules = () => loadRules().catch(() => setTimeout(rules, 15000))
 rules()
 const tricks = () => loadTricks().catch(() => {})
-// the tricks name amounts in the pot's unit, so they wait for the first pot
-tick().then(tricks)
+const dir = () => loadDirectory().catch(() => setTimeout(dir, 15000))
+senderField()
+// the tricks and the directory name amounts in the pot's unit, so they wait for the first pot
+tick().then(() => { tricks(); dir() })
 setInterval(() => { if (!document.hidden) tricks() }, 30000)
 setInterval(() => { for (const t of document.querySelectorAll('time[datetime]')) t.textContent = ago(Date.parse(t.dateTime)) }, 15000)

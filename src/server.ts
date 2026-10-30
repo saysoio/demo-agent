@@ -8,9 +8,10 @@ import { fileURLToPath } from 'node:url'
 import { formatUnits } from 'viem'
 import type { Agent } from './agent.ts'
 import { decimalsFor, unitName, type Config } from './config.ts'
+import { directory } from './directory.ts'
 import {
   AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
-  parseFeedQuery, parseSubmit, publicAttempt, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
+  parseFeedQuery, parseSubmit, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
 } from './guard/index.ts'
 import { rulesView, type SignedRules } from './rules.ts'
 import { dayName, dayStart } from './spend.ts'
@@ -71,6 +72,7 @@ export function makeServer(d: ServerDeps): Server {
   const stats = new SharedRead(async () => store.stats(), 4_000, d.now, e => d.log?.(`stats read failed: ${errorTag(e)}`))
   const tricks = new SharedRead(async () => ({ items: store.tricks(TRICKS).map(publicTrick) }), 4_000, d.now, e => d.log?.(`tricks read failed: ${errorTag(e)}`))
   const rules = publicRules(rulesView(cfg, d.signed ?? null))
+  const people = publicDirectory(directory(cfg.vendors))
 
   async function potView() {
     return publicPot({
@@ -108,6 +110,7 @@ export function makeServer(d: ServerDeps): Server {
       }
       if (path === '/api/tricks') return send(res, 200, (await tricks.get()) ?? { items: [] })
       if (path === '/api/rules') return send(res, 200, rules, { 'cache-control': 'public, max-age=300' })
+      if (path === '/api/directory') return send(res, 200, people, { 'cache-control': 'public, max-age=300' })
       if (path === '/api/health') return send(res, 200, { ok: true })
       return send(res, 404, { error: 'not found' })
     }

@@ -23,6 +23,10 @@ player ──/game/ form──▶ inbox (SQLite) ──▶ Haiku reads one item 
   on its own.
 - **Real vendor invoices** arrive on a timer, so allowed payments show up in the feed next to the attacks.
 - **A win** (money paid to a non-vendor) pauses the game automatically.
+- **The page** reads only public routes: `/api/pot`, `/api/feed`, `/api/rules` (the published rules setup signs, rebuilt
+  from the same settings, since saysoio 0.7.0 cannot read a signed mandate back) and `/api/tricks` (the 10 newest player
+  payments sayso blocked, with a short excerpt). Every field they send is named in `src/guard/expose.ts`. "Read the code"
+  shows only when `DEMO_SOURCE_URL` is set.
 - **Limits:** per handle and per IP (hour and day), a global pace, a daily cap on model calls, a cap on the queue, 600
   characters per item, 4 KB per request.
 - **Isolation:** the box refuses to start as root, with secret-looking settings that are not its own or settings that
@@ -58,7 +62,15 @@ Admin (token in `DEMO_ADMIN_TOKEN`):
 ```bash
 curl -X POST -H "authorization: Bearer $DEMO_ADMIN_TOKEN" -H 'content-type: application/json' -d '{"paused":true,"why":"maintenance"}' http://127.0.0.1:8787/api/admin/pause
 curl -X POST -H "authorization: Bearer $DEMO_ADMIN_TOKEN" -H 'content-type: application/json' -d '{"id":42}' http://127.0.0.1:8787/api/admin/hide
+curl -H "authorization: Bearer $DEMO_ADMIN_TOKEN" http://127.0.0.1:8787/api/admin/spend
 ```
+
+Model spend: every Haiku call's tokens (input, output, cache write and read) are kept in the `model_calls` table, priced
+at `DEMO_LLM_PRICE_IN_PER_MTOK` / `DEMO_LLM_PRICE_OUT_PER_MTOK` when made. `/api/admin/spend` gives today's (UTC) and
+all-time totals and the call count, and the log gets one `model spend <day>` line when a UTC day ends. With
+`DEMO_LLM_BUDGET_USD` set, reaching it in a UTC day pauses the game (the page shows it as paused for budget; at most the
+call that crosses it is made) and the next UTC day lifts that pause alone; an admin or safety pause stays. Spend is
+never on the public page.
 
 ## Docker
 

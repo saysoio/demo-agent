@@ -62,3 +62,17 @@ test('the agent name comes from the settings, Penny by default', () => {
   assert.equal(loadConfig({ DEMO_FAKE: '1' }).agentName, 'Penny')
   assert.equal(loadConfig({ DEMO_FAKE: '1', DEMO_AGENT_NAME: ' Max ' }).agentName, 'Max')
 })
+
+test('the rules caps come from the settings, and a bad one stops the start', () => {
+  assert.deepEqual(loadConfig({ DEMO_FAKE: '1' }).caps, { daily: '0.005', weekly: '0.015' })
+  assert.deepEqual(loadConfig({ DEMO_FAKE: '1', DEMO_DAILY_CAP: '0.004', DEMO_WEEKLY_CAP: '0.01' }).caps, { daily: '0.004', weekly: '0.01' })
+  assert.throws(() => loadConfig({ DEMO_FAKE: '1', DEMO_DAILY_CAP: 'lots' }), /DEMO_DAILY_CAP/)
+})
+
+test('the source link is https only, without credentials, and off by default', () => {
+  assert.equal(loadConfig({ DEMO_FAKE: '1' }).sourceUrl, null)
+  assert.equal(loadConfig({ DEMO_FAKE: '1', DEMO_SOURCE_URL: 'https://github.com/saysoio/demo-agent/' }).sourceUrl, 'https://github.com/saysoio/demo-agent')
+  for (const bad of ['http://github.com/x', 'javascript:alert(1)', 'not a url', 'https://u:p@github.com/x']) {
+    assert.throws(() => loadConfig({ DEMO_FAKE: '1', DEMO_SOURCE_URL: bad }), /DEMO_SOURCE_URL/, bad)
+  }
+})

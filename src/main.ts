@@ -9,6 +9,7 @@ import { decimalsFor, loadConfig, type LlmSettings } from './config.ts'
 import { isolationProblems, processProbe } from './isolation.ts'
 import { proxyTrustProblem } from './guard/index.ts'
 import { makeServer } from './server.ts'
+import { callCost, dailySpendLog, dayStart, type Usage } from './spend.ts'
 import { Store } from './store.ts'
 import { FakePayer, SaysoPayer, type Payer } from './wallet.ts'
 
@@ -43,15 +44,19 @@ async function main() {
     const acct = await cdp.evm.getAccount({ name: cfg.cdpAccountName })
     payer = new SaysoPayer(cfg, toAccount(acct as any))
   }
-  const brain = cfg.fake ? new FakeBrain(cfg.vendors) : await HaikuBrain.create({ apiKey: cfg.secrets.anthropic, llm: cfg.llm, system: systemPrompt({ agentName: cfg.agentName, asset: cfg.asset, vendors: cfg.vendors }) })
+  const onUsage = (u: Usage) => store.addModelCall(cfg.llm.model, u, callCost(u, cfg.spend))
+  const brain = cfg.fake ? new FakeBrain(cfg.vendors) : await HaikuBrain.create({ apiKey: cfg.secrets.anthropic, llm: cfg.llm, onUsage, system: systemPrompt({ agentName: cfg.agentName, asset: cfg.asset, vendors: cfg.vendors }) })
+  const budget = cfg.spend.budgetUsd === null ? undefined : { usd: cfg.spend.budgetUsd, spentToday: () => store.spend(dayStart(Date.now())).usd }
 
   const maxPerPayment = cfg.maxPerPayment ? parseUnits(cfg.maxPerPayment, decimals) : undefined
-  const agent = new Agent({ store, brain, payer, asset: cfg.asset, vendors: cfg.vendors, maxPerPayment, log })
+  const agent = new Agent({ store, brain, payer, asset: cfg.asset, vendors: cfg.vendors, maxPerPayment, budget, log })
   agent.start({ tickMs: cfg.tickMs, vendorInvoiceEveryMs: cfg.vendorInvoiceEveryMs })
   const server = makeServer({ cfg, store, agent, payer, log })
   server.listen(cfg.port, cfg.host, () => log(`demo-agent on http://${cfg.host}:${cfg.port}/game/ (${cfg.network}, ${cfg.asset}, wallet ${payer.address}${cfg.fake ? ', FAKE' : modelRoute(cfg.llm)}${agent.paused() ? `, PAUSED: ${agent.paused()}` : ''})`))
 
-  const bye = () => { agent.stop(); server.close(); store.close(); process.exit(0) }
+  const spendLog = setInterval(dailySpendLog((from, to) => store.spend(from, to), log), 60_000)
+
+  const bye = () => { clearInterval(spendLog); agent.stop(); server.close(); store.close(); process.exit(0) }
   process.on('SIGINT', bye); process.on('SIGTERM', bye)
 }
 

@@ -2,6 +2,7 @@
 // payment to the guarded wallet. Vendor invoices arrive on a timer so allowed payments show up next to the attacks.
 import { formatUnits, getAddress } from 'viem'
 import type { Brain, Decision } from './brain.ts'
+import { BUDGET_PAUSE } from './spend.ts'
 import { decimalsFor, unitName, type Asset, type Vendor } from './config.ts'
 import { checkDecision, cleanModelText, errorTag, MODEL_TEXT, slug } from './guard/index.ts'
 import type { PayContext, Payer } from './wallet.ts'
@@ -11,6 +12,9 @@ export interface AgentOptions {
   store: Store; brain: Brain; payer: Payer; asset: Asset; vendors: Vendor[]
   /** the signed per-payment cap, in the asset's smallest unit: an allow above it pauses the game */
   maxPerPayment?: bigint
+  /** the daily model budget in USD and what was spent today: reaching it pauses the game, and that pause alone lifts by
+   *  itself once the day's spend is under the budget again (the next UTC day) */
+  budget?: { usd: number; spentToday: () => number }
   log?: (msg: string) => void
 }
 
@@ -39,6 +43,16 @@ export class Agent {
   paused(): string | null { return this.o.store.flag('paused') }
   pause(why: string) { this.o.store.setFlag('paused', why) }
   resume() { this.o.store.setFlag('paused', null) }
+  pausedForBudget(): boolean { return this.paused() === BUDGET_PAUSE }
+
+  /** Pauses at the budget, resumes past it; an admin or a safety pause is never lifted here. */
+  checkBudget() {
+    const b = this.o.budget
+    if (!b) return
+    const over = b.spentToday() >= b.usd, p = this.paused()
+    if (over && p === null) { this.pause(BUDGET_PAUSE); this.o.log?.(`model budget of $${b.usd} reached; the game is paused until the next UTC day`) }
+    else if (!over && p === BUDGET_PAUSE) { this.resume(); this.o.log?.('a new day under the model budget; the game resumes') }
+  }
 
   isVendor(a: string): boolean { try { const x = getAddress(a.toLowerCase()); return this.o.vendors.some(v => v.address === x) } catch { return false } }
 
@@ -57,6 +71,7 @@ export class Agent {
     if (this.busy) return false
     this.busy = true
     try {
+      this.checkBudget()
       const a = this.o.store.claimNext()
       if (!a) return false
       this.o.store.finish(a.id, await this.handle(a))

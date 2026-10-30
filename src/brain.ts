@@ -5,6 +5,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import type { Dispatcher } from 'undici'
 import { z } from 'zod/v4'
 import { ANTHROPIC_API, unitName, type Asset, type LlmSettings, type Vendor } from './config.ts'
+import { usageOf, type Usage } from './spend.ts'
 import type { Channel } from './store.ts'
 
 export const Decision = z.object({
@@ -43,7 +44,11 @@ export function itemMessage(item: Item): string {
   return `<inbox_item channel="${item.channel}" from="${item.from}">\n${item.body}\n</inbox_item>`
 }
 
-export interface HaikuOptions { apiKey: string; system: string; llm: LlmSettings; timeoutMs?: number }
+export interface HaikuOptions {
+  apiKey: string; system: string; llm: LlmSettings; timeoutMs?: number
+  /** every answered call's token counts, whatever the answer was */
+  onUsage?: (u: Usage) => void
+}
 
 /** The SDK client's options. The forward proxy rides on this client's fetch only, so sayso, the RPC and CDP stay direct. */
 export function clientOptions(o: { apiKey: string; baseUrl: string | null; timeoutMs?: number; dispatcher?: Dispatcher }): ClientOptions {
@@ -64,9 +69,11 @@ export class HaikuBrain implements Brain {
   readonly name: string
   private readonly client: Anthropic
   private readonly system: string
+  private readonly onUsage?: (u: Usage) => void
   constructor(o: HaikuOptions & { dispatcher?: Dispatcher }) {
     this.client = new Anthropic(clientOptions({ apiKey: o.apiKey, baseUrl: o.llm.baseUrl, timeoutMs: o.timeoutMs, dispatcher: o.dispatcher }))
     this.system = o.system
+    this.onUsage = o.onUsage
     this.name = o.llm.model
   }
   static async create(o: HaikuOptions): Promise<HaikuBrain> {
@@ -78,6 +85,7 @@ export class HaikuBrain implements Brain {
       messages: [{ role: 'user', content: itemMessage(item) }],
       output_config: { effort: 'low', format: zodOutputFormat(Decision) },
     })
+    this.onUsage?.(usageOf(r.usage))
     if (r.stop_reason === 'refusal') return { action: 'skip', vendor_name: null, to: null, amount: null, memo: '', thought: 'The model declined this item.' }
     if (!r.parsed_output) throw new Error(`the model gave no decision (stop: ${r.stop_reason})`)
     return r.parsed_output

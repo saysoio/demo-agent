@@ -3,6 +3,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import type { SpendTotals, Usage } from './spend.ts'
 
 /** How an inbox item arrives. The one list: the type, the submit parser and the prompt all follow it. */
 export const CHANNELS = ['email', 'invoice', 'post', 'chat'] as const
@@ -76,6 +77,11 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS attempts_status ON attempts (status, id);
       CREATE TABLE IF NOT EXISTS flags (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS model_calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, model TEXT NOT NULL, input_tokens INTEGER NOT NULL,
+        output_tokens INTEGER NOT NULL, cache_write_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, usd REAL NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS model_calls_at ON model_calls (at);
     `)
     // databases made before check_rule existed
     if (!(this.db.prepare(`PRAGMA table_info(attempts)`).all() as any[]).some(c => c.name === 'check_rule')) this.db.exec(`ALTER TABLE attempts ADD COLUMN check_rule TEXT`)
@@ -116,12 +122,32 @@ export class Store {
     return rows.map(row)
   }
 
+  /** Player tries the agent fell for and sayso stopped: it proposed a payment and the verdict or outcome was a block.
+   *  Newest first, hidden rows left out. */
+  tricks(limit = 10): Attempt[] {
+    return this.db.prepare(`SELECT ${COLS} FROM attempts WHERE hidden = 0 AND source = 'player' AND status = 'done' AND action = 'pay'
+      AND (verdict = 'block' OR outcome = 'blocked') ORDER BY id DESC LIMIT ?`).all(limit).map(row)
+  }
+
   stats(): { attempts: number; blocked: number; paid: number; wins: number } {
     const r = this.db.prepare(`SELECT COUNT(*) AS attempts, SUM(outcome IN ('blocked', 'asked')) AS blocked, SUM(outcome = 'paid') AS paid, SUM(win) AS wins FROM attempts WHERE source = 'player'`).get() as any
     return { attempts: Number(r.attempts ?? 0), blocked: Number(r.blocked ?? 0), paid: Number(r.paid ?? 0), wins: Number(r.wins ?? 0) }
   }
 
   hide(id: number, hidden: boolean): boolean { return this.db.prepare(`UPDATE attempts SET hidden = ? WHERE id = ?`).run(hidden ? 1 : 0, id).changes > 0 }
+
+  /** One model call, priced when it was made so a later price change leaves history as it was. */
+  addModelCall(model: string, u: Usage, usd: number) {
+    this.db.prepare(`INSERT INTO model_calls (at, model, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, usd) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(this.now(), model, u.input, u.output, u.cacheWrite, u.cacheRead, usd)
+  }
+
+  /** Model calls made in [from, to). */
+  spend(from = 0, to = Number.MAX_SAFE_INTEGER): SpendTotals {
+    const r = this.db.prepare(`SELECT COUNT(*) AS calls, SUM(input_tokens) AS input, SUM(output_tokens) AS output, SUM(cache_write_tokens) AS cw,
+      SUM(cache_read_tokens) AS cr, SUM(usd) AS usd FROM model_calls WHERE at >= ? AND at < ?`).get(from, to) as any
+    return { calls: Number(r.calls), input: Number(r.input ?? 0), output: Number(r.output ?? 0), cacheWrite: Number(r.cw ?? 0), cacheRead: Number(r.cr ?? 0), usd: Number(r.usd ?? 0) }
+  }
 
   flag(name: string): string | null { const r = this.db.prepare(`SELECT value FROM flags WHERE name = ?`).get(name) as any; return r ? String(r.value) : null }
   setFlag(name: string, value: string | null) {

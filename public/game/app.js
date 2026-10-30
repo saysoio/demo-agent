@@ -1,4 +1,5 @@
-// /game/: the pot, the submit form and the live feed. Everything players wrote is set with textContent, never as HTML.
+// /game/: the pot, the security layer, the stopped tricks, the submit form and the live feed. Everything players or
+// the model wrote is set with textContent, never as HTML.
 const $ = id => document.getElementById(id)
 const OUTCOME = {
   paid: ['paid', 'ok'], blocked: ['stopped by Sayso', 'stop'], asked: ['held for owner', 'hold'], skipped: ['ignored', 'quiet'],
@@ -10,6 +11,9 @@ const RULE = { cap: 'over a cap', 'unknown payee': 'unknown payee', injection: '
 // the server's limits, sent with the pot; these match it until the first answer
 let limits = { textChars: 600, feedPage: 50 }
 let unit = '', explorerBase = '', oldest = null, newest = 0
+// the feed shows this many newest rows until "Show all"
+const FEED_SHORT = 5
+let expanded = false, hasOlder = false
 const shown = new Map()
 // ids shown as queued or thinking: followed by id once they fall off the newest page
 const waiting = new Set()
@@ -75,6 +79,10 @@ async function loadPot() {
   $('balance').textContent = p.balance ?? '…'; $('unit').textContent = p.unit
   $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`; $('network').textContent = p.network === 'base' ? 'Base' : 'Base Sepolia (test money)'
   setStatus(p.paused ? 'paused' : 'live')
+  const note = $('pause-note')
+  note.hidden = !p.paused
+  note.textContent = p.budgetPaused ? 'Paused for budget: the agent has used its model budget for today. It is back after midnight UTC.' : p.paused ? 'The game is paused for now.' : ''
+  showSource(p.source)
   $('s-attempts').textContent = p.stats.attempts; $('s-blocked').textContent = p.stats.blocked; $('s-wins').textContent = p.stats.wins; $('s-queued').textContent = p.queued
   $('send').disabled = !!p.paused
   const v = $('vendors')
@@ -84,6 +92,74 @@ async function loadPot() {
     li.append(n, ad); v.append(li)
   }
 }
+
+// the link appears only for an https URL the server sends
+function showSource(url) {
+  const ok = typeof url === 'string' && url.startsWith('https://')
+  for (const a of [$('code-link'), $('foot-link')]) if (ok) a.href = url
+  $('code-link').hidden = !ok; $('foot-code').hidden = !ok
+}
+
+async function loadRules() {
+  const r = await get('/api/rules')
+  const amt = x => `${x} ${r.unit}`
+  const v = $('g-vendors'); v.replaceChildren()
+  for (const x of r.vendors) {
+    const li = document.createElement('li'), n = document.createElement('span'), ad = document.createElement('code')
+    n.textContent = x.name; ad.textContent = short(x.address); ad.title = x.address
+    li.append(n, ' ', ad); v.append(li)
+  }
+  $('g-per').textContent = amt(r.perPayment); $('g-day').textContent = amt(r.daily); $('g-week').textContent = amt(r.weekly)
+  $('g-actions').textContent = r.actions.length === 1 && r.actions[0] === 'transfer' ? `Plain ${r.unit} transfers to these payees only. No trades, contract calls, approvals or signed messages.` : r.actions.join(', ')
+  $('g-strict').textContent = r.strictness
+  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}, ${r.sdk.mode} mode: nothing is signed without Sayso's allow`
+  $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
+  $('g-signed').textContent = r.signedVerdicts ? 'Signed by Sayso, every one; the wallet checks the signature' : 'unsigned'
+  $('g-source').textContent = r.source === 'published rules' ? 'Published rules, word for word' : r.source
+  $('g-text').textContent = r.text
+}
+
+// the stopped tricks: re-rendered only when the set of ids changes
+let trickIds = ''
+async function loadTricks() {
+  const { items } = await get('/api/tricks')
+  const ids = items.map(a => a.id).join(',')
+  if (ids === trickIds) return
+  trickIds = ids
+  const list = $('t-list')
+  list.replaceChildren(...items.map(trick))
+  $('tricks').hidden = !items.length
+  list.scrollLeft = 0
+  carButtons()
+}
+
+function trick(a) {
+  const li = $('trick').content.firstElementChild.cloneNode(true)
+  li.querySelector('.who').textContent = `@${a.handle}`
+  li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
+  const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
+  li.querySelector('.t-body').textContent = a.excerpt
+  li.querySelector('.what').textContent = a.toAddr ? `tried ${a.amount} ${unit} to ${short(a.toAddr)}` : ''
+  li.querySelector('.rule').textContent = Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
+  labelled(li.querySelector('.reason'), 'Sayso', a.reason ?? '')
+  return li
+}
+
+const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+function carButtons() {
+  const l = $('t-list'), end = l.scrollWidth - l.clientWidth - 2
+  $('t-prev').disabled = l.scrollLeft <= 2; $('t-next').disabled = l.scrollLeft >= end
+}
+function carStep(dir) {
+  const l = $('t-list'), card = l.firstElementChild
+  if (!card) return
+  const gap = parseFloat(getComputedStyle(l).columnGap) || 0
+  l.scrollBy({ left: dir * (card.getBoundingClientRect().width + gap), behavior: still() ? 'auto' : 'smooth' })
+}
+$('t-prev').addEventListener('click', () => carStep(-1))
+$('t-next').addEventListener('click', () => carStep(1))
+$('t-list').addEventListener('scroll', carButtons, { passive: true })
+addEventListener('resize', carButtons)
 
 let first = true, feedNote = ''
 function feedStatus(text) { if (text !== feedNote) { feedNote = text; $('feed-status').textContent = text } }
@@ -118,16 +194,34 @@ async function loadFeed() {
     else if (fresh) list.append(li)
     newest = Math.max(newest, a.id); oldest = oldest === null ? a.id : Math.min(oldest, a.id)
   }
-  if (first) { $('more').hidden = items.length < limits.feedPage; first = false }
+  if (first) { hasOlder = items.length >= limits.feedPage; first = false }
+  feedControls()
   await followWaiting(items)
   const busy = waiting.size
   feedStatus(added ? `${added} new` : busy ? `${busy} waiting` : 'Up to date')
 }
 
+// Collapsed, the list shows its first FEED_SHORT rows (CSS) and paging back waits for "Show all".
+function feedControls() {
+  const t = $('toggle')
+  t.hidden = shown.size <= FEED_SHORT && !hasOlder
+  t.textContent = expanded ? 'Show fewer' : 'Show all'
+  t.setAttribute('aria-expanded', String(expanded))
+  $('feed').classList.toggle('collapsed', !expanded)
+  $('more').hidden = !expanded || !hasOlder
+}
+
+$('toggle').addEventListener('click', () => {
+  expanded = !expanded
+  feedControls()
+  if (!expanded) $('feed-h').scrollIntoView({ block: 'nearest', behavior: still() ? 'auto' : 'smooth' })
+})
+
 $('more').addEventListener('click', async () => {
   const { items } = await get(`/api/feed?before=${oldest}`)
   for (const a of items) { if (!shown.has(a.id)) $('feed').append(render(a)); oldest = Math.min(oldest, a.id) }
-  $('more').hidden = items.length < limits.feedPage
+  hasOlder = items.length >= limits.feedPage
+  feedControls()
 })
 
 $('text').addEventListener('input', () => {
@@ -155,6 +249,11 @@ $('form').addEventListener('submit', async e => {
 })
 
 const tick = () => Promise.all([loadPot(), loadFeed()]).catch(() => { setStatus('offline'); feedStatus('Offline, retrying') })
-tick()
 setInterval(() => { if (!document.hidden) tick() }, 4000)
-setInterval(() => { for (const li of shown.values()) { const t = li.querySelector('time'); t.textContent = ago(Date.parse(t.dateTime)) } }, 15000)
+const rules = () => loadRules().catch(() => setTimeout(rules, 15000))
+rules()
+const tricks = () => loadTricks().catch(() => {})
+// the tricks name amounts in the pot's unit, so they wait for the first pot
+tick().then(tricks)
+setInterval(() => { if (!document.hidden) tricks() }, 30000)
+setInterval(() => { for (const t of document.querySelectorAll('time[datetime]')) t.textContent = ago(Date.parse(t.dateTime)) }, 15000)

@@ -1,5 +1,5 @@
-// The box's only door to the internet: the /game/ page, a submit endpoint, the public feed and pot, and two admin calls
-// behind a token. No other route exists; every answer carries a strict content policy.
+// The box's only door to the internet: the /game/ page, a submit endpoint, the public feed, pot and rules, and the
+// admin calls behind a token. No other route exists; every answer carries a strict content policy.
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
@@ -9,8 +9,10 @@ import type { Agent } from './agent.ts'
 import { decimalsFor, unitName, type Config } from './config.ts'
 import {
   AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
-  parseFeedQuery, parseSubmit, publicAttempt, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
+  parseFeedQuery, parseSubmit, publicAttempt, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
 } from './guard/index.ts'
+import { rulesView } from './rules.ts'
+import { dayName, dayStart } from './spend.ts'
 import type { Store } from './store.ts'
 import type { Payer } from './wallet.ts'
 
@@ -22,6 +24,8 @@ const HEADERS = {
   'referrer-policy': 'no-referrer',
   'cross-origin-opener-policy': 'same-origin',
 }
+
+const TRICKS = 10
 
 export interface ServerDeps { cfg: Config; store: Store; agent: Agent; payer: Payer; now?: () => number; log?: (m: string) => void }
 
@@ -44,18 +48,33 @@ export function makeServer(d: ServerDeps): Server {
   const admin = new AdminGate({ token: cfg.secrets.admin, localHeader: cfg.trustLocalHeader, now: d.now })
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
+  const rules = publicRules(rulesView(cfg))
+
   async function potView() {
-    return {
+    return publicPot({
       address: payer.address, balance: await balance.get(), unit: unitName(cfg.asset), network: cfg.network, chainId: cfg.chainId,
-      explorerBase: cfg.explorer, paused: agent.paused(), queued: store.queued(), stats: store.stats(),
-      vendors: cfg.vendors.map(v => ({ name: v.name, address: v.address })), limits: { textChars: MAX_TEXT_CHARS, feedPage: FEED_PAGE },
-    }
+      explorerBase: cfg.explorer, paused: agent.paused(), budgetPaused: agent.pausedForBudget(), queued: store.queued(), stats: store.stats(),
+      vendors: cfg.vendors.map(v => ({ name: v.name, address: v.address })), limits: { textChars: MAX_TEXT_CHARS, feedPage: FEED_PAGE }, source: cfg.sourceUrl,
+    })
+  }
+
+  // for the operator only: never on the public page
+  function spendView() {
+    const now = (d.now ?? Date.now)()
+    return { day: dayName(now), today: store.spend(dayStart(now)), allTime: store.spend(), budgetUsd: cfg.spend.budgetUsd, budgetPer: 'UTC day',
+      prices: { inPerMtok: cfg.spend.inPerMtok, outPerMtok: cfg.spend.outPerMtok }, paused: agent.pausedForBudget() }
   }
 
   async function route(req: IncomingMessage, res: ServerResponse) {
     const url = new URL(req.url ?? '/', 'http://box')
     const ip = clientIp(req, cfg.trustLocalHeader, cfg.trustedProxies)
     const path = url.pathname
+
+    if (req.method === 'GET' && path.startsWith('/api/admin/')) {
+      const no = admin.check(req); if (no) return send(res, no.status, { error: no.error })
+      if (path === '/api/admin/spend') return send(res, 200, spendView())
+      return send(res, 404, { error: 'not found' })
+    }
 
     if (req.method === 'GET' && path.startsWith('/api/')) {
       if (!reads.take(ipKey(ip))) return send(res, 429, { error: 'slow down' })
@@ -65,6 +84,8 @@ export function makeServer(d: ServerDeps): Server {
         const { ids, limit, before } = q.value
         return send(res, 200, { items: (ids ? store.feedRows(ids) : store.feed(limit, before)).map(publicAttempt) })
       }
+      if (path === '/api/tricks') return send(res, 200, { items: store.tricks(TRICKS).map(publicTrick) })
+      if (path === '/api/rules') return send(res, 200, rules, { 'cache-control': 'public, max-age=300' })
       if (path === '/api/health') return send(res, 200, { ok: true })
       return send(res, 404, { error: 'not found' })
     }

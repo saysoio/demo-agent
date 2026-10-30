@@ -49,17 +49,17 @@ const Posing = (() => {
     const people = [
       ...(dir.vendors ?? []).map(v => ({
         name: v.name,
-        keys: [v.name, noTld(String(v.website ?? '')), String(v.email ?? '').split('@')[1] ? noTld(String(v.email).split('@')[1]) : '',
-          String(v.x ?? '').replace(/^@/, '').replace(/_?demo$/i, '')],
-        exact: [],
+        keys: [v.name, noTld(String(v.website ?? '')), String(v.email ?? '').split('@')[1] ? noTld(String(v.email).split('@')[1]) : '', String(v.x ?? '')],
+        // the X handle's first word alone ("northwind") is too common a word to find inside other names
+        exact: [String(v.x ?? '').replace(/^@/, '').replace(/_?demo$/i, '')],
       })),
-      ...(dir.colleagues ?? []).map(c => ({ name: c.name, keys: [c.name], exact: [String(c.name).split(/\s+/)[0], String(c.chat ?? '').replace(/^@/, '')] })),
+      ...(dir.colleagues ?? []).map(c => ({ name: c.name, keys: [c.name], exact: [...String(c.name).split(/\s+/), String(c.chat ?? '').replace(/^@/, '')] })),
     ]
     for (const p of people) {
       if (typeof p.name !== 'string' || !p.name) continue
       const keys = [...new Set(p.keys.map(skeleton))].filter(k => k.length >= 4)
       const exact = new Set(p.exact.map(skeleton).filter(k => k.length >= 3))
-      if (ps.some(x => exact.has(x) || keys.some(k => x.includes(k) || near(x, k)))) return p.name
+      if (ps.some(x => [...exact].some(k => near(x, k)) || keys.some(k => x.includes(k) || near(x, k)))) return p.name
     }
     return null
   }

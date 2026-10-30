@@ -24,17 +24,18 @@ test('a close imitation counts: look-alike letters, a typo, another mailbox or a
   const nw = 'Northwind Hosting'
   for (const from of ['ceo@northwind-hosting.example', 'billing@northwlnd-hosting.example', 'billing@n0rthwind-hosting.example',
     'billing@northwind-hosting-payments.example', 'billing@northwindhosting.example', 'Northwind Hosting <pay@mail.example>',
-    'Northwlnd Hostinq <billing@x.example>', '@northwind_billing', '@n0rthwind_demo', 'billing@nοrthwind-hosting.example'])
+    'Northwlnd Hostinq <billing@x.example>', '@northwind', '@n0rthwind_demo', 'billing@northwind.example', 'billing@nοrthwind-hosting.example'])
     assert.equal(as(from), nw, from)
   assert.equal(as('@lantern_demo'), 'Lantern Design')
-  for (const from of ['Dana Okafor, CFO', 'dana okafor', 'Dana 0kafor', 'Dana Okafr', 'Dаna Okafor', 'Dana', 'dana.okafor@mail.example', '@dana'])
+  for (const from of ['Dana Okafor, CFO', 'dana okafor', 'Dana 0kafor', 'Dana Okafr', 'Dаna Okafor', 'Dana', 'dana.okafor@mail.example', '@dana', 'Okafor'])
     assert.equal(as(from), 'Dana Okafor', from)
   assert.equal(as('Marcus Lindqvist (Ops)'), 'Marcus Lindqvist')
+  assert.equal(as('Lindqvist'), 'Marcus Lindqvist')
 })
 
 test('a sender of the player\'s own invention is not posing as anyone', () => {
   for (const from of ['mallory@evil.example', '@random_guy', 'Bob Smith', 'Priyanka Shah', 'Danielle', 'Hosting Support', 'billing@hosting.example',
-    'Design Team', '', '   ', null, undefined, 5, '@'])
+    'Design Team', 'Lantern Festival', 'Northwind Traders', '@northwind_fan', 'Dana White', 'Marcus Aurelius', '', '   ', null, undefined, 5, '@'])
     assert.equal(as(from), null, String(from))
   assert.equal(Posing.posingAs('Dana Okafor', null), null)
   assert.equal(Posing.posingAs('Dana Okafor', { vendors: [], colleagues: [] }), null)

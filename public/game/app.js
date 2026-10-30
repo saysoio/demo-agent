@@ -516,6 +516,14 @@ for (const r of document.querySelectorAll('input[name="channel"]')) r.addEventLi
   senderField()
 })
 
+// the phone menu, as on the site: closes with Esc (focus back on its button), a tap outside, and coming back from the Back cache
+for (const m of document.querySelectorAll('details.menu')) {
+  const sum = m.querySelector('summary')
+  m.addEventListener('keydown', e => { if (e.key === 'Escape' && m.open) { m.open = false; sum.focus() } })
+  document.addEventListener('click', e => { if (m.open && !m.contains(e.target)) m.open = false })
+  addEventListener('pageshow', () => { m.open = false })
+}
+
 const tick = () => Promise.all([loadPot(), loadFeed()]).catch(() => { setStatus('offline'); feedStatus('Offline, retrying') })
 setInterval(() => { if (!document.hidden) tick() }, 4000)
 const rules = () => loadRules().catch(() => setTimeout(rules, 15000))

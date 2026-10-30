@@ -14,14 +14,13 @@
   --ok: #4CD07D; --stop: #FF7A8C; --hold: var(--ask);
   --sans: Onest, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Commit Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --gut: 16px; --ease: cubic-bezier(.2, 0, 0, 1);
+  --gut: max(16px, 4vw); --ease: cubic-bezier(.2, 0, 0, 1);
   color-scheme: dark;
 }
-@media (min-width: 720px) { :root { --gut: 32px; } }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; background: var(--s900); scroll-padding-top: 80px; scrollbar-color: var(--s600) var(--s900); }
+html { -webkit-text-size-adjust: 100%; background: var(--s900); scroll-padding-top: 84px; scrollbar-color: var(--s600) var(--s900); }
 body { margin: 0; background: var(--s900); color: var(--chalk); font: 400 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; overflow-x: hidden; }
 h1, h2, h3, h4, p, ol, ul, dl, dd, figure { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
@@ -33,7 +32,7 @@ button { font: inherit; color: inherit; }
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .skip { position: absolute; left: 12px; top: -60px; z-index: 30; padding: 8px 12px; border-radius: 3px; background: var(--chalk); color: var(--s900); font-weight: 650; }
 .skip:focus { top: 12px; }
-.wrap { width: 100%; max-width: 1240px; margin-inline: auto; padding-inline: var(--gut); }
+.wrap { width: 100%; max-width: 1280px; margin-inline: auto; padding-inline: var(--gut); }
 .link { font-weight: 600; text-decoration: underline; text-decoration-color: var(--s500); }
 .link:hover { text-decoration-color: var(--chalk); }
 
@@ -87,13 +86,33 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
 .badge.hold { --plate: #DDCC70; }
 .stamp { display: inline-flex; align-items: center; height: 29px; padding: 0 10px; font: 700 14px/1 var(--sans); letter-spacing: .06em; color: #fff; }
 
-/* nav */
-.nav { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--s800); background: rgb(17 21 25 / .92); }
-@supports (backdrop-filter: blur(1px)) { .nav { background: rgb(17 21 25 / .78); backdrop-filter: saturate(1.2) blur(10px); -webkit-backdrop-filter: saturate(1.2) blur(10px); } }
-.nav-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
-.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; color: var(--s50); min-width: 0; }
-.mark { width: 26px; height: 18px; display: block; flex: none; }
-.brand-game { padding-left: 12px; border-left: 1px solid var(--s600); font-weight: 600; font-size: 15px; color: var(--s300); white-space: nowrap; }
+/* nav: the site's header (apps/site/sayso.css "1 nav"), the same look and the same 1280px row, so moving between the
+   site and the game feels like one site. With Home and Demo added, the links fold into the menu a little earlier. */
+.nav { position: sticky; top: 0; z-index: 20; background: rgb(17 21 25 / .92); border-bottom: 1px solid var(--s800); }
+@supports (backdrop-filter: blur(1px)) { .nav { background: rgb(17 21 25 / .8); backdrop-filter: saturate(1.2) blur(10px); -webkit-backdrop-filter: saturate(1.2) blur(10px); } }
+.nav .wrap { display: flex; align-items: center; gap: 32px; min-height: 64px; color: var(--chalk); }
+.nav .logo { line-height: 0; display: inline-flex; align-items: center; min-height: 32px; color: var(--chalk); }
+.lk { height: 24px; width: auto; } .lk-s { display: none; height: 20px; width: auto; }
+.nav-links { display: flex; gap: 28px; margin-left: auto; font-size: 15px; font-weight: 600; }
+.nav-links a { text-decoration: none; color: var(--s200); display: inline-flex; align-items: center; min-height: 32px; }
+.nav-links a:hover, .nav-links a[aria-current] { color: var(--chalk); }
+.nav-links a[aria-current=page] { text-decoration: underline; text-decoration-color: var(--s500); text-underline-offset: 8px; }
+.nav-app { font-size: 15px; font-weight: 600; color: var(--s200); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: 32px; }
+.nav-app:hover { color: var(--chalk); }
+.menu { display: none; position: relative; }
+.menu summary { list-style: none; cursor: pointer; min-height: 40px; padding: 0 12px; border: 1px solid var(--s600); border-radius: 3px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu .bars { width: 14px; height: 8px; position: relative; }
+.menu .bars::before, .menu .bars::after { content: ""; position: absolute; left: 0; right: 0; height: 1.5px; background: var(--chalk); transition: transform .2s var(--ease), top .2s var(--ease); }
+.menu .bars::before { top: 0; } .menu .bars::after { top: 6.5px; }
+.menu[open] .bars::before { top: 3.25px; transform: rotate(45deg); } .menu[open] .bars::after { top: 3.25px; transform: rotate(-45deg); }
+.menu nav { position: absolute; right: 0; top: 48px; width: min(86vw, 320px); background: var(--s800); border: 1px solid var(--s600); border-radius: 6px; padding: 8px; display: grid; }
+.menu nav a { padding: 12px; border-radius: 3px; text-decoration: none; font-weight: 600; }
+.menu nav a:hover { background: var(--s700); }
+.menu nav a[aria-current=page] { text-decoration: underline; text-decoration-color: var(--s500); text-underline-offset: 6px; }
+.menu nav .btn { margin-top: 6px; }
+@media (max-width: 980px) { .nav-links, .nav .cta, .nav-app { display: none; } .menu { display: block; margin-left: auto; } }
+@media (max-width: 860px) { .lk { display: none; } .lk-s { display: block; } }
 
 /* hero: the dot field behind, the copy and the pot over it */
 .hero { position: relative; isolation: isolate; padding-block: clamp(32px, 6vw, 88px) clamp(16px, 2vw, 24px); }

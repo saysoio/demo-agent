@@ -20,15 +20,22 @@ player ──/game/ form──▶ inbox (SQLite) ──▶ Haiku reads one item 
   SDK (0.7.0) in enforce mode, which fails closed. A block, an ask (nobody is on duty to approve), or a slow or unverifiable answer means
   "not signed".
 - **Four ways in** for players: email, invoice, social post, a message in the internal team chat. Each is one item, read
-  on its own.
+  on its own, with a sender the player chooses (`from`: an email address, `Name <email>` on an invoice, an @handle on a
+  post, a name in the team chat). Spoofing a vendor or a colleague is allowed; the shape is checked per channel
+  (`src/guard/input.ts` `parseFrom`). The player's own handle stays for the feed, the limits and the reserved names, and
+  sayso is told both: the item came through the public form under that handle, claiming to be from that sender.
+- **The directory** (`src/directory.ts`, made from `DEMO_VENDORS`): each vendor's billing email, website, X handle,
+  wallet and usual invoice, and three colleagues in the team chat. All made up: domains under `.example`, handles ending
+  in `_demo`. The agent's prompt carries it, scheduled vendor invoices come from the vendor's billing email, and the page
+  shows it (`/api/directory`).
 - **Real vendor invoices** arrive on a timer, so allowed payments show up in the feed next to the attacks.
 - **A win** (money paid to a non-vendor) pauses the game automatically.
-- **The page** reads only public routes: `/api/pot`, `/api/feed`, `/api/rules` (the rules the owner signed, from the
+- **The page** reads only public routes: `/api/pot`, `/api/feed`, `/api/directory`, `/api/rules` (the rules the owner signed, from the
   `signed-rules.json` setup writes, since saysoio 0.7.0 cannot read a signed mandate back; required on base, and the
   box refuses to start when its settings differ from it; on base-sepolia without it, the published rules rebuilt from
   the settings) and `/api/tricks` (the 10 newest player
-  payments sayso blocked, with a short excerpt). Every field they send is named in `src/guard/expose.ts`. "Read the code"
-  shows only when `DEMO_SOURCE_URL` is set.
+  payments sayso blocked, with a short excerpt). Every field they send is named in `src/guard/expose.ts`. "Read the agent's
+  code" shows only when `DEMO_SOURCE_URL` is set.
 - **Limits:** per handle and per IP (hour and day), a global pace, a daily cap on model calls, a cap on the queue, 600
   characters per item, 4 KB per request.
 - **Isolation:** the box refuses to start as root, with secret-looking settings that are not its own or settings that

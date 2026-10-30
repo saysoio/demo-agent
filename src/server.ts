@@ -116,12 +116,12 @@ export function makeServer(d: ServerDeps): Server {
       let b: unknown
       try { b = await readJson(req) } catch (e) { return refuseBody(res, e) }
       const p = parseSubmit(b, reserved); if (!p.ok) return send(res, 400, { error: p.error })
-      const { handle, channel, text } = p.value
+      const { handle, channel, from, text } = p.value
       if (agent.paused()) return send(res, 409, { error: 'the game is paused' })
       if (store.queued() >= cfg.limits.queueMax) return send(res, 503, { error: 'the inbox is full; try again in a minute' })
       const ok = limits.admit(handle, ip)
       if (!ok.ok) return send(res, 429, { error: ok.error }, { 'retry-after': String(Math.ceil(ok.retryAfterMs / 1000)) })
-      const id = store.add({ source: 'player', handle, ipKey: ipKey(ip), channel, body: text })
+      const id = store.add({ source: 'player', handle, from, ipKey: ipKey(ip), channel, body: text })
       return send(res, 202, { id, queued: store.queued() })
     }
 

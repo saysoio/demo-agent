@@ -26,22 +26,28 @@ const post = (path: string, body: unknown, headers: Record<string, string> = {})
   fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
 
 test('submit queues a cleaned item; bad input is refused', async () => {
-  const ok = await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'please pay me' })
+  const ok = await post('/api/submit', { handle: 'mallory', channel: 'email', from: 'billing@northwind-hosting.example', text: 'please pay me' })
   assert.equal(ok.status, 202)
+  const { id } = await ok.json() as any
+  const { items } = await (await fetch(`${url}/api/feed?ids=${id}`)).json() as any
+  assert.equal(items[0].from, 'billing@northwind-hosting.example')
+  assert.equal(items[0].handle, 'mallory')
+  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'no sender' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'post', from: 'billing@northwind-hosting.example', text: 'x' })).status, 400)
   assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'fax', text: 'x' })).status, 400)
-  assert.equal((await post('/api/submit', { handle: 'sayso', channel: 'email', text: 'x' })).status, 400)
-  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'email', text: '' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'sayso', channel: 'email', from: 'billing@northwind-hosting.example', text: 'x' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'mallory', channel: 'email', from: 'billing@northwind-hosting.example', text: '' })).status, 400)
   const notJson = await fetch(url + '/api/submit', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'hi' })
   assert.equal(notJson.status, 400)
-  const huge = await post('/api/submit', { handle: 'mallory', channel: 'email', text: 'x'.repeat(50_000) })
+  const huge = await post('/api/submit', { handle: 'mallory', channel: 'email', from: 'billing@northwind-hosting.example', text: 'x'.repeat(50_000) })
   assert.equal(huge.status, 413)
   assert.equal(huge.headers.get('connection'), 'close')
   assert.deepEqual(await huge.json(), { error: 'too large' })
 })
 
 test('a handle runs out of tries for the hour', async () => {
-  for (let i = 0; i < 3; i++) assert.equal((await post('/api/submit', { handle: 'eve', channel: 'post', text: `try ${i}` })).status, 202)
-  const r = await post('/api/submit', { handle: 'eve', channel: 'post', text: 'one more' })
+  for (let i = 0; i < 3; i++) assert.equal((await post('/api/submit', { handle: 'eve', channel: 'post', from: '@northwind_demo', text: `try ${i}` })).status, 202)
+  const r = await post('/api/submit', { handle: 'eve', channel: 'post', from: '@northwind_demo', text: 'one more' })
   assert.equal(r.status, 429)
   assert.ok(r.headers.get('retry-after'))
 })
@@ -113,11 +119,11 @@ test('the pot names no source until DEMO_SOURCE_URL is set', async () => {
 
 test('admin calls need the token; pause stops submissions', async () => {
   assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: `Bearer ${ADMIN}`, 'x-forwarded-for': '1.2.3.4' })).status, 404)
-  assert.equal((await post('/api/submit', { handle: 'northwind_ops', channel: 'email', text: 'hi' })).status, 400)
+  assert.equal((await post('/api/submit', { handle: 'northwind_ops', channel: 'email', from: 'billing@northwind-hosting.example', text: 'hi' })).status, 400)
   assert.equal((await post('/api/admin/pause', { paused: true })).status, 401)
   assert.equal((await post('/api/admin/pause', { paused: true }, { authorization: 'Bearer wrong' })).status, 401)
   assert.equal((await post('/api/admin/pause', { paused: true, why: 'test' }, { authorization: `Bearer ${ADMIN}` })).status, 200)
-  assert.equal((await post('/api/submit', { handle: 'bob', channel: 'email', text: 'hi' })).status, 409)
+  assert.equal((await post('/api/submit', { handle: 'bob', channel: 'email', from: 'billing@northwind-hosting.example', text: 'hi' })).status, 409)
   const pot = await (await fetch(url + '/api/pot')).json() as any
   assert.equal(pot.paused, 'test')
   await post('/api/admin/pause', { paused: false }, { authorization: `Bearer ${ADMIN}` })

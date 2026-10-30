@@ -67,14 +67,46 @@ export function vendorHandles(vendors: Vendor[]): string[] {
   return [...new Set(all.filter(Boolean))]
 }
 
-export interface Submit { handle: string; channel: Channel; text: string }
+export const MAX_FROM_CHARS = 120
+const EMAIL = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$/
+// a display name: letters (any script), spaces and . , ' & ( ) -; no quotes, angle brackets, slashes or digits
+const NAME = /^[\p{L}\p{M}][\p{L}\p{M} .,'&()-]*$/u
+const FROM_RULE: Record<Channel, string> = {
+  email: 'from: an email address, like billing@northwind-hosting.example',
+  invoice: 'from: an email address or Name <email>, like Northwind Hosting <billing@northwind-hosting.example>',
+  post: 'from: an @handle of up to 30 letters, digits or _',
+  chat: 'from: a name of up to 60 letters, spaces or . , \' & ( ) -',
+}
+
+/** Who the agent is told sent the item. Spoofing a vendor or a colleague is allowed (it is the game); the shape is not
+ *  free: one address, handle or name per channel, so the sender cannot carry instructions or break out of its attribute. */
+export function parseFrom(v: unknown, channel: Channel): { ok: true; from: string } | { ok: false; error: string } {
+  if (typeof v !== 'string') return fail('from must be text')
+  // NFKC folds look-alikes (fullwidth ＜ ＠) into the plain characters the rules below then judge
+  const s = tidy(v.normalize('NFKC')).replace(/\s+/g, ' ')
+  if (!s) return fail('from is empty')
+  if ([...s].length > MAX_FROM_CHARS) return fail(`from must be at most ${MAX_FROM_CHARS} characters`)
+  const bad = fail(FROM_RULE[channel])
+  if (channel === 'post') {
+    const h = s.replace(/^@/, '')
+    return /^[A-Za-z0-9_]{1,30}$/.test(h) ? { ok: true, from: `@${h}` } : bad
+  }
+  if (channel === 'chat') return [...s].length <= 60 && NAME.test(s) ? { ok: true, from: s } : bad
+  if (EMAIL.test(s)) return { ok: true, from: s }
+  const m = channel === 'invoice' ? /^(.{1,60}?) ?<([^<>]+)>$/u.exec(s) : null
+  if (m && NAME.test(m[1].trim()) && EMAIL.test(m[2])) return { ok: true, from: `${m[1].trim()} <${m[2]}>` }
+  return bad
+}
+
+export interface Submit { handle: string; channel: Channel; from: string; text: string }
 export function parseSubmit(b: unknown, reserved: readonly string[]): Parsed<Submit> {
   const h = cleanHandle(field(b, 'handle')); if (!h.ok) return h
   if (reserved.some(v => h.handle.startsWith(v))) return fail('that handle is reserved')
   const t = cleanText(field(b, 'text')); if (!t.ok) return t
   const c = field(b, 'channel'), channel = CHANNELS.find(x => x === c)
   if (!channel) return fail(`channel must be one of ${CHANNELS.join(', ')}`)
-  return { ok: true, value: { handle: h.handle, channel, text: t.text } }
+  const f = parseFrom(field(b, 'from'), channel); if (!f.ok) return f
+  return { ok: true, value: { handle: h.handle, channel, from: f.from, text: t.text } }
 }
 
 /** The newest page, a page before an id, or (ids=1,2,3) up to FEED_PAGE rows by id so the page can follow rows that

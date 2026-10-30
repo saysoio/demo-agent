@@ -1,5 +1,5 @@
-// Limits in front of the model. Adapted from sayso's Season 0 game (apps/game/src/limits.ts): per handle, per IP (hour
-// and day), a global pace and a daily cap on model calls (the bill); plus the caps on connections and shared reads.
+// Limits in front of the model. Adapted from sayso's Season 0 game (apps/game/src/limits.ts): per IP (hour
+// and day; players have no handle, so nothing they type is a key), a global pace and a daily cap on model calls (the bill); plus the caps on connections and shared reads.
 import { isIP } from 'node:net'
 import type { Server } from 'node:http'
 import type { Config } from '../config.ts'
@@ -97,25 +97,24 @@ export function ipKey(ipIn: string): string {
   return `${g.slice(0, 4).map(x => x.toString(16)).join(':')}::/64`
 }
 
-export interface LimitConfig { perHandleHour: number; perIpHour: number; perIpDay: number; perMinute: number; modelCallsDay: number }
+export interface LimitConfig { perIpHour: number; perIpDay: number; perMinute: number; modelCallsDay: number }
 export type Admission = { ok: true } | { ok: false; error: string; retryAfterMs: number }
 
 export class Limits {
-  private readonly steps: Array<{ l: WindowLimiter; key: (h: string, ip: string) => string; error: string }>
+  private readonly steps: Array<{ l: WindowLimiter; key: (ip: string) => string; error: string }>
   constructor(cfg: LimitConfig, now: () => number = Date.now) {
     this.steps = [
-      { l: new WindowLimiter(cfg.perHandleHour, HOUR, now), key: h => h, error: 'you have used your tries for this hour' },
-      { l: new WindowLimiter(cfg.perIpHour, HOUR, now), key: (_, ip) => ip, error: 'this network has sent too many tries this hour' },
-      { l: new WindowLimiter(cfg.perIpDay, DAY, now), key: (_, ip) => ip, error: 'this network has used its share of today' },
+      { l: new WindowLimiter(cfg.perIpHour, HOUR, now), key: ip => ip, error: 'this network has sent too many tries this hour' },
+      { l: new WindowLimiter(cfg.perIpDay, DAY, now), key: ip => ip, error: 'this network has used its share of today' },
       { l: new WindowLimiter(cfg.perMinute, 60_000, now), key: () => 'all', error: 'the agent is busy; try again in a minute' },
       { l: new WindowLimiter(cfg.modelCallsDay, DAY, now), key: () => 'all', error: 'the agent is done for today; come back tomorrow' },
     ]
   }
   /** All must pass; only then is one used at every level. */
-  admit(handle: string, ipIn: string): Admission {
-    const ip = ipKey(ipIn), h = handle.toLowerCase()
-    for (const s of this.steps) { const c = s.l.check(s.key(h, ip)); if (!c.ok) return { ok: false, error: s.error, retryAfterMs: c.retryAfterMs } }
-    for (const s of this.steps) s.l.hit(s.key(h, ip))
+  admit(ipIn: string): Admission {
+    const ip = ipKey(ipIn)
+    for (const s of this.steps) { const c = s.l.check(s.key(ip)); if (!c.ok) return { ok: false, error: s.error, retryAfterMs: c.retryAfterMs } }
+    for (const s of this.steps) s.l.hit(s.key(ip))
     return { ok: true }
   }
 }

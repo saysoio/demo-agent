@@ -4,7 +4,7 @@ import type { Attempt } from '../store.ts'
 import { clip } from './text.ts'
 
 export const PUBLIC_FIELDS = [
-  'id', 'createdAt', 'source', 'handle', 'from', 'channel', 'body', 'status', 'action', 'toAddr', 'amount', 'memo', 'thought',
+  'id', 'createdAt', 'source', 'from', 'channel', 'body', 'status', 'action', 'toAddr', 'amount', 'memo', 'thought',
   'verdict', 'reason', 'rule', 'outcome', 'note', 'txHash', 'checkMs', 'win', 'doneAt',
 ] as const satisfies readonly (keyof Attempt)[]
 
@@ -29,7 +29,7 @@ export const DIRECTORY_VENDOR_FIELDS = ['name', 'email', 'website', 'x', 'wallet
 export const COLLEAGUE_FIELDS = ['name', 'role', 'chat'] as const
 
 /** A stopped trick shows the player text as a short excerpt, never in full. */
-export const TRICK_FIELDS = ['id', 'createdAt', 'handle', 'from', 'channel', 'toAddr', 'amount', 'rule', 'reason'] as const satisfies readonly (keyof Attempt)[]
+export const TRICK_FIELDS = ['id', 'createdAt', 'from', 'channel', 'toAddr', 'amount', 'rule', 'reason'] as const satisfies readonly (keyof Attempt)[]
 export const TRICK_EXCERPT = 140
 
 function pick<K extends string>(from: Partial<Record<K, unknown>>, fields: readonly K[]): Record<K, unknown> {

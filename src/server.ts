@@ -11,7 +11,7 @@ import { decimalsFor, unitName, type Config } from './config.ts'
 import { directory } from './directory.ts'
 import {
   AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
-  parseFeedQuery, parseSubmit, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
+  parseFeedQuery, parseSubmit, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath,
 } from './guard/index.ts'
 import { rulesView, type SignedRules } from './rules.ts'
 import { dayName, dayStart } from './spend.ts'
@@ -64,7 +64,6 @@ export function makeServer(d: ServerDeps): Server {
   const { cfg, store, agent, payer } = d
   const limits = new Limits(cfg.limits, d.now)
   const reads = new RateWindow(600, 60_000, d.now)
-  const reserved = vendorHandles(cfg.vendors)
   const admin = new AdminGate({ token: cfg.secrets.admin, localHeader: cfg.trustLocalHeader, now: d.now })
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
@@ -118,13 +117,13 @@ export function makeServer(d: ServerDeps): Server {
     if (req.method === 'POST' && path === '/api/submit') {
       let b: unknown
       try { b = await readJson(req) } catch (e) { return refuseBody(res, e) }
-      const p = parseSubmit(b, reserved); if (!p.ok) return send(res, 400, { error: p.error })
-      const { handle, channel, from, text } = p.value
+      const p = parseSubmit(b); if (!p.ok) return send(res, 400, { error: p.error })
+      const { channel, from, text } = p.value
       if (agent.paused()) return send(res, 409, { error: 'the game is paused' })
       if (store.queued() >= cfg.limits.queueMax) return send(res, 503, { error: 'the inbox is full; try again in a minute' })
-      const ok = limits.admit(handle, ip)
+      const ok = limits.admit(ip)
       if (!ok.ok) return send(res, 429, { error: ok.error }, { 'retry-after': String(Math.ceil(ok.retryAfterMs / 1000)) })
-      const id = store.add({ source: 'player', handle, from, ipKey: ipKey(ip), channel, body: text })
+      const id = store.add({ source: 'player', from, ipKey: ipKey(ip), channel, body: text })
       return send(res, 202, { id, queued: store.queued() })
     }
 

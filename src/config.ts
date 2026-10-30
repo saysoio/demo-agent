@@ -55,7 +55,7 @@ export interface Config {
   trustLocalHeader: string | null
   /** exact peer addresses, besides loopback, whose trustLocalHeader is believed */
   trustedProxies: string[]
-  limits: { perHandleHour: number; perIpHour: number; perIpDay: number; perMinute: number; modelCallsDay: number; queueMax: number }
+  limits: { perIpHour: number; perIpDay: number; perMinute: number; modelCallsDay: number; queueMax: number }
   secrets: { anthropic: string; sayso: string; admin: string; cdp: { apiKeyId: string; apiKeySecret: string; walletSecret: string } | null }
   cdpAccountName: string
 }
@@ -185,7 +185,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     trustLocalHeader: env.DEMO_TRUST_LOCAL_HEADER?.trim().toLowerCase() || null,
     trustedProxies: parseTrustedProxies(env.DEMO_TRUSTED_PROXY),
     limits: {
-      perHandleHour: int('DEMO_LIMIT_HANDLE_HOUR', 10), perIpHour: int('DEMO_LIMIT_IP_HOUR', 30), perIpDay: int('DEMO_LIMIT_IP_DAY', 120),
+      perIpHour: int('DEMO_LIMIT_IP_HOUR', 30), perIpDay: int('DEMO_LIMIT_IP_DAY', 120),
       perMinute: int('DEMO_LIMIT_PER_MINUTE', 20), modelCallsDay: int('DEMO_MODEL_CALLS_DAY', 3000), queueMax: int('DEMO_QUEUE_MAX', 50),
     },
     secrets: { anthropic: need('ANTHROPIC_API_KEY'), sayso: need('DEMO_SAYSO_API_KEY'), admin: admin || 'dev-admin-token-not-for-production', cdp },

@@ -19,7 +19,6 @@ export interface Attempt {
   id: number
   createdAt: number
   source: Source
-  handle: string
   /** who the item says it is from (the player's choice, unverified); null on rows from before senders existed */
   from: string | null
   ipKey: string
@@ -49,12 +48,12 @@ export interface Result {
   verdict: Attempt['verdict']; reason: string | null; rule: CheckRule | null; outcome: Outcome; note: string | null; txHash: string | null; checkMs: number | null; win: boolean
 }
 
-const COLS = `id, created_at, source, handle, ip_key, channel, body, status, action, to_addr, amount, memo, thought, verdict, reason,
+const COLS = `id, created_at, source, ip_key, channel, body, status, action, to_addr, amount, memo, thought, verdict, reason,
   check_rule, outcome, note, tx_hash, check_ms, win, hidden, done_at, sender`
 
 function row(r: any): Attempt {
   return {
-    id: Number(r.id), createdAt: Number(r.created_at), source: r.source, handle: r.handle, from: r.sender ?? null, ipKey: r.ip_key, channel: r.channel, body: r.body,
+    id: Number(r.id), createdAt: Number(r.created_at), source: r.source, from: r.sender ?? null, ipKey: r.ip_key, channel: r.channel, body: r.body,
     status: r.status, action: r.action, toAddr: r.to_addr, amount: r.amount, memo: r.memo, thought: r.thought, verdict: r.verdict,
     reason: r.reason, rule: r.check_rule ?? null, outcome: r.outcome, note: r.note, txHash: r.tx_hash, checkMs: r.check_ms === null ? null : Number(r.check_ms),
     win: !!r.win, hidden: !!r.hidden, doneAt: r.done_at === null ? null : Number(r.done_at),
@@ -85,7 +84,8 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS model_calls_at ON model_calls (at);
     `)
-    // databases made before check_rule or sender existed
+    // databases made before check_rule or sender existed. The handle column is left from when players had one: it is
+    // NOT NULL in those databases, so new rows write an empty one, and nothing reads it
     const cols = new Set((this.db.prepare(`PRAGMA table_info(attempts)`).all() as any[]).map(c => String(c.name)))
     if (!cols.has('check_rule')) this.db.exec(`ALTER TABLE attempts ADD COLUMN check_rule TEXT`)
     if (!cols.has('sender')) this.db.exec(`ALTER TABLE attempts ADD COLUMN sender TEXT`)
@@ -93,9 +93,9 @@ export class Store {
     this.db.prepare(`UPDATE attempts SET status = 'done', outcome = 'error', note = 'the agent restarted during this attempt', done_at = ? WHERE status = 'thinking'`).run(this.now())
   }
 
-  add(a: { source: Source; handle: string; from?: string | null; ipKey: string; channel: Channel; body: string }): number {
-    const r = this.db.prepare(`INSERT INTO attempts (created_at, source, handle, sender, ip_key, channel, body) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(this.now(), a.source, a.handle, a.from ?? null, a.ipKey, a.channel, a.body)
+  add(a: { source: Source; from?: string | null; ipKey: string; channel: Channel; body: string }): number {
+    const r = this.db.prepare(`INSERT INTO attempts (created_at, source, handle, sender, ip_key, channel, body) VALUES (?, ?, '', ?, ?, ?, ?)`)
+      .run(this.now(), a.source, a.from ?? null, a.ipKey, a.channel, a.body)
     return Number(r.lastInsertRowid)
   }
 

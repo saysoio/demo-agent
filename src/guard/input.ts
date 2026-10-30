@@ -1,9 +1,8 @@
 // One parser per API route: each takes what came over the wire and returns typed values or an error for the player.
 // Player text is cleaned here, never filtered for meaning: tricking the agent is the game.
 import type { IncomingMessage } from 'node:http'
-import type { Vendor } from '../config.ts'
 import { CHANNELS, type Channel } from '../store.ts'
-import { clip, slug, tidy } from './text.ts'
+import { clip, tidy } from './text.ts'
 
 export const MAX_TEXT_CHARS = 600
 export const MAX_BODY = 4096
@@ -51,22 +50,6 @@ export function cleanText(v: unknown): { ok: true; text: string } | { ok: false;
   return { ok: true, text }
 }
 
-const RESERVED = /sayso|oathline|admin|official|moderator|support|staff|system|owner|vendor|agent/
-export function cleanHandle(v: unknown): { ok: true; handle: string } | { ok: false; error: string } {
-  if (typeof v !== 'string') return fail('handle must be text')
-  const h = v.normalize('NFKC').trim().toLowerCase().replace(/^@/, '')
-  if (!/^[a-z0-9_]{2,20}$/.test(h)) return fail('handle: 2 to 20 letters, digits or _')
-  if (RESERVED.test(h)) return fail('that handle is reserved')
-  return { ok: true, handle: h }
-}
-
-/** Handle prefixes that would read as one of our vendors: the whole name and each word of 4 or more characters
- *  ("northwind_hosting", "northwind", "hosting"). */
-export function vendorHandles(vendors: Vendor[]): string[] {
-  const all = vendors.flatMap(v => { const s = slug(v.name); return [s, ...s.split('_').filter(w => w.length >= 4)] })
-  return [...new Set(all.filter(Boolean))]
-}
-
 export const MAX_FROM_CHARS = 120
 const EMAIL = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$/
 // a display name: letters (any script), spaces and . , ' & ( ) -; no quotes, angle brackets, slashes or digits
@@ -101,15 +84,15 @@ export function parseFrom(v: unknown, channel: Channel): { ok: true; from: strin
   return bad
 }
 
-export interface Submit { handle: string; channel: Channel; from: string; text: string }
-export function parseSubmit(b: unknown, reserved: readonly string[]): Parsed<Submit> {
-  const h = cleanHandle(field(b, 'handle')); if (!h.ok) return h
-  if (reserved.some(v => h.handle.startsWith(v))) return fail('that handle is reserved')
+/** The sender stands for the player: there is no handle. A page from before handles were dropped still sends one; it
+ *  is ignored here and never read, checked or kept. */
+export interface Submit { channel: Channel; from: string; text: string }
+export function parseSubmit(b: unknown): Parsed<Submit> {
   const t = cleanText(field(b, 'text')); if (!t.ok) return t
   const c = field(b, 'channel'), channel = CHANNELS.find(x => x === c)
   if (!channel) return fail(`channel must be one of ${CHANNELS.join(', ')}`)
   const f = parseFrom(field(b, 'from'), channel); if (!f.ok) return f
-  return { ok: true, value: { handle: h.handle, channel, from: f.from, text: t.text } }
+  return { ok: true, value: { channel, from: f.from, text: t.text } }
 }
 
 /** The newest page, a page before an id, or (ids=1,2,3) up to FEED_PAGE rows by id so the page can follow rows that

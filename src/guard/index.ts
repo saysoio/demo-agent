@@ -6,8 +6,8 @@ export {
   COLLEAGUE_FIELDS, DIRECTORY_VENDOR_FIELDS, excerpt, LIMIT_FIELDS, POT_FIELDS, SDK_FIELDS, STATS_FIELDS, VENDOR_FIELDS, PUBLIC_FIELDS, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RULES_FIELDS, TRICK_EXCERPT, TRICK_FIELDS, type PublicAttempt,
 } from './expose.ts'
 export {
-  BodyRefused, boundedInt, cleanHandle, cleanText, FEED_PAGE, MAX_BODY, MAX_FROM_CHARS, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseFeedQuery,
-  parseFrom, parseSubmit, readJson, vendorHandles, type AdminHide, type AdminPause, type FeedQuery, type Parsed, type Submit,
+  BodyRefused, boundedInt, cleanText, FEED_PAGE, MAX_BODY, MAX_FROM_CHARS, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseFeedQuery,
+  parseFrom, parseSubmit, readJson, type AdminHide, type AdminPause, type FeedQuery, type Parsed, type Submit,
 } from './input.ts'
 export {
   clientIp, hardenServer, ipKey, isLoopback, Limits, MAX_CONNECTIONS, proxyTrustProblem, RateWindow, SharedRead, unmapIp, WindowLimiter,

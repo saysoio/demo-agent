@@ -3,9 +3,9 @@ import { test } from 'node:test'
 import type { IncomingMessage } from 'node:http'
 import type { Attempt, Channel } from '../src/store.ts'
 import {
-  AdminGate, cleanHandle, cleanModelText, cleanText, clientIp, errorTag, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
+  AdminGate, cleanModelText, cleanText, clientIp, errorTag, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
   excerpt, MAX_FROM_CHARS, parseFeedQuery, parseFrom, parseSubmit, POT_FIELDS, proxyTrustProblem, PUBLIC_FIELDS, publicAttempt, publicPot, publicRules, publicTrick, RULES_FIELDS,
-  SharedRead, TRICK_EXCERPT, TRICK_FIELDS, slug, staticPath, tokenOk, unmapIp, vendorHandles,
+  SharedRead, TRICK_EXCERPT, TRICK_FIELDS, slug, staticPath, tokenOk, unmapIp,
 } from '../src/guard/index.ts'
 import { escapeMarkup, MAX_MARKS } from '../src/guard/text.ts'
 
@@ -33,25 +33,22 @@ test('escapeMarkup leaves no tag, entity or attribute quote', () => {
   assert.equal(escapeMarkup('plain text, it\'s fine'), 'plain text, it\'s fine')
 })
 
-test('cleanHandle refuses handles that pass for us', () => {
-  assert.deepEqual(cleanHandle('@Alice_1'), { ok: true, handle: 'alice_1' })
-  for (const h of ['sayso_team', 'admin', 'the_agent', 'northwind vendor', 'a', 'x'.repeat(21), 'ｓａｙｓｏ']) assert.equal(cleanHandle(h).ok, false, h)
-})
-
 test('ipKey groups IPv6 by /64 and unwraps mapped IPv4', () => {
   assert.equal(ipKey('2001:db8:1:2:3:4:5:6'), ipKey('2001:db8:1:2:ffff::1'))
   assert.equal(ipKey('::ffff:1.2.3.4'), '1.2.3.4')
 })
 
-test('limits: one handle per hour, and a refusal uses nothing', () => {
+test('limits: per network per hour, and a refusal uses nothing', () => {
   let t = 0
-  const l = new Limits({ perHandleHour: 2, perIpHour: 100, perIpDay: 100, perMinute: 100, modelCallsDay: 100 }, () => t)
-  assert.equal(l.admit('a', '1.1.1.1').ok, true)
-  assert.equal(l.admit('A', '1.1.1.1').ok, true)
-  assert.equal(l.admit('a', '1.1.1.1').ok, false)
-  assert.equal(l.admit('b', '1.1.1.1').ok, true)
+  const l = new Limits({ perIpHour: 2, perIpDay: 100, perMinute: 100, modelCallsDay: 100 }, () => t)
+  assert.equal(l.admit('1.1.1.1').ok, true)
+  assert.equal(l.admit('::ffff:1.1.1.1').ok, true)
+  const no = l.admit('1.1.1.1')
+  assert.equal(no.ok, false)
+  assert.match((no as { error: string }).error, /network/)
+  assert.equal(l.admit('2.2.2.2').ok, true)
   t += 3600_001
-  assert.equal(l.admit('a', '1.1.1.1').ok, true)
+  assert.equal(l.admit('1.1.1.1').ok, true)
 })
 
 test('clientIp believes the local header only from loopback', () => {
@@ -70,17 +67,17 @@ test('clientIp believes the header from a listed proxy, not from an unlisted pee
 })
 
 test('the public projection is an allowlist: private and unknown fields never pass', () => {
-  const a = { id: 1, createdAt: 0, source: 'player', handle: 'x', from: 'Dana Okafor', ipKey: '1.2.3.4', channel: 'email', body: 'hi', status: 'done', action: null,
+  const a = { id: 1, createdAt: 0, source: 'player', from: 'Dana Okafor', ipKey: '1.2.3.4', channel: 'email', body: 'hi', status: 'done', action: null,
     toAddr: null, amount: null, memo: null, thought: null, verdict: null, reason: null, rule: null, outcome: null, note: null, txHash: null, checkMs: null,
-    win: false, hidden: true, doneAt: null, futureSecret: 'leak' } as Attempt & { futureSecret: string }
+    win: false, hidden: true, doneAt: null, futureSecret: 'leak', handle: 'old' } as Attempt & { futureSecret: string; handle: string }
   const p = publicAttempt(a)
   assert.deepEqual(Object.keys(p), [...PUBLIC_FIELDS])
-  for (const k of ['ipKey', 'hidden', 'futureSecret']) assert.equal(k in p, false, k)
+  for (const k of ['ipKey', 'hidden', 'handle', 'futureSecret']) assert.equal(k in p, false, k)
   assert.equal(p.from, 'Dana Okafor')
   const t = publicTrick({ ...a, body: 'x'.repeat(500) })
   assert.deepEqual(Object.keys(t), [...TRICK_FIELDS, 'excerpt'])
   assert.equal([...t.excerpt].length, TRICK_EXCERPT)
-  for (const k of ['ipKey', 'hidden', 'futureSecret', 'body', 'thought']) assert.equal(k in t, false, k)
+  for (const k of ['ipKey', 'hidden', 'handle', 'futureSecret', 'body', 'thought']) assert.equal(k in t, false, k)
 })
 
 test('the pot and the rules pass only their named fields', () => {
@@ -105,16 +102,17 @@ test('an excerpt is one line, clipped with an ellipsis only when too long', () =
   assert.equal(excerpt('abcde', 5), 'abcde')
 })
 
-test('parseSubmit cleans, reserves vendor handles and checks the channel', () => {
-  const reserved = vendorHandles([{ name: 'Northwind Hosting', address: '0x1111111111111111111111111111111111111111', usual: '1' }])
-  assert.deepEqual(reserved, ['northwind_hosting', 'northwind', 'hosting'])
-  assert.deepEqual(parseSubmit({ handle: '@Bob', channel: 'post', from: 'northwind_demo', text: ' hi ' }, reserved), { ok: true, value: { handle: 'bob', channel: 'post', from: '@northwind_demo', text: 'hi' } })
-  assert.deepEqual(parseSubmit({ handle: 'cfo_anna', channel: 'chat', from: 'Dana Okafor', text: 'pay this now' }, reserved), { ok: true, value: { handle: 'cfo_anna', channel: 'chat', from: 'Dana Okafor', text: 'pay this now' } })
-  // the sender may be a vendor even though the handle may not
-  assert.equal(parseSubmit({ handle: 'bob', channel: 'invoice', from: 'Northwind Hosting <billing@northwind-hosting.example>', text: 'pay' }, reserved).ok, true)
-  assert.equal(parseSubmit({ handle: 'bob', channel: 'post', text: 'hi' }, reserved).ok, false)
-  for (const b of [null, [], 'x', { handle: 'northwind_ops', channel: 'post', text: 'hi' }, { handle: 'hosting_help', channel: 'post', text: 'hi' }, { handle: 'bob', channel: 'fax', text: 'hi' },
-    { handle: 'bob', channel: 'toString', text: 'hi' }, { handle: 'bob', channel: 'post', text: '' }]) assert.equal(parseSubmit(b, reserved).ok, false, JSON.stringify(b))
+test('parseSubmit cleans and checks the channel, and ignores a handle an old page still sends', () => {
+  assert.deepEqual(parseSubmit({ channel: 'post', from: 'northwind_demo', text: ' hi ' }), { ok: true, value: { channel: 'post', from: '@northwind_demo', text: 'hi' } })
+  assert.deepEqual(parseSubmit({ channel: 'chat', from: 'Dana Okafor', text: 'pay this now' }), { ok: true, value: { channel: 'chat', from: 'Dana Okafor', text: 'pay this now' } })
+  assert.equal(parseSubmit({ channel: 'invoice', from: 'Northwind Hosting <billing@northwind-hosting.example>', text: 'pay' }).ok, true)
+  // a page from before this change sends a handle, any handle: it is dropped, never checked or kept
+  for (const handle of ['bob', 'sayso', 'northwind_ops', '', 5, null, '<b>x</b>']) {
+    assert.deepEqual(parseSubmit({ handle, channel: 'email', from: 'a@b.example', text: 'hi' }), { ok: true, value: { channel: 'email', from: 'a@b.example', text: 'hi' } }, String(handle))
+  }
+  assert.equal(parseSubmit({ channel: 'post', text: 'hi' }).ok, false)
+  for (const b of [null, [], 'x', { channel: 'fax', from: 'a@b.example', text: 'hi' }, { channel: 'toString', from: 'a@b.example', text: 'hi' },
+    { channel: 'post', from: '@x', text: '' }]) assert.equal(parseSubmit(b).ok, false, JSON.stringify(b))
 })
 
 test('parseFrom takes one sender per channel, spoofs included, and nothing that could carry instructions', () => {
@@ -153,10 +151,7 @@ test('parseFrom takes one sender per channel, spoofs included, and nothing that 
   assert.doesNotMatch((parseFrom(5, 'email') as { error: string }).error, /reload/i)
 })
 
-test('vendor handles: whole slug and words of 4 or more, no empty or repeated entries', () => {
-  const v = (name: string) => ({ name, address: '0x1111111111111111111111111111111111111111' as const, usual: '1' })
-  assert.deepEqual(vendorHandles([v('A & B Co.'), v('Acme Labs'), v('Acme')]), ['a_b_co', 'acme_labs', 'acme', 'labs'])
-  assert.deepEqual(vendorHandles([v('...')]), [])
+test('slug: lowercase words joined by _', () => {
   assert.equal(slug('  Lantern Design & Print. '), 'lantern_design_print')
 })
 

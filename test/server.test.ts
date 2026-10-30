@@ -201,6 +201,7 @@ test('the game page carries the terms footer, links the rules and privacy, and n
     'sayso team', 'Not affiliated with Devcon or the Ethereum Foundation', 'href="/game/rules.html"', 'href="https://saysoio.com/privacy"']) assert.ok(foot.includes(s), s)
   assert.ok(html.includes('The transfer is yours (test ETH, no value).'))
   assert.doesNotMatch(html, /prize|bount/i)
+  assert.doesNotMatch(html, /id="handle"|your handle/i)
 })
 
 test('the rules page is served under the same policy, with the win, conduct and privacy sections', async () => {
@@ -215,6 +216,9 @@ test('the rules page is served under the same policy, with the win, conduct and 
     '18 or older', 'sanctions', 'Do not impersonate real people or real companies', 'We may remove any entry and block any player', 'can change or stop at any time',
     'Privacy notice', 'IPv4 address in full', 'no end date', 'Anthropic', 'Amsterdam', 'mailto:security@saysoio.com', 'https://saysoio.com/privacy']) assert.ok(html.includes(s), s)
   assert.doesNotMatch(html, /secures|guarantee|100%|audited/i)
+  // no handle is asked for, shown, sent on or remembered
+  assert.doesNotMatch(html, /your handle|under a handle you choose|tries per handle/i)
+  assert.ok(html.includes('The game no longer asks for a handle and keeps none.'))
   assert.equal(r.headers.get('cache-control'), 'no-cache')
 })
 

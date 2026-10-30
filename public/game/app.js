@@ -136,13 +136,18 @@ function labelled(el, label, text) {
   el.append(document.createTextNode(text))
 }
 
+// who a try says it is from: the sender the player typed (there is no handle), in full on hover
+function sender(li, a) {
+  const who = li.querySelector('.who')
+  who.textContent = a.from || 'no sender given'; who.title = a.from ?? ''
+}
+
 function render(a) {
   const li = shown.get(a.id) ?? $('row').content.firstElementChild.cloneNode(true)
   let tone
-  li.querySelector('.who').textContent = a.source === 'vendor' ? `${a.handle}, our vendor` : `@${a.handle}`
-  li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
+  sender(li, a)
+  li.querySelector('.chan').textContent = a.source === 'vendor' ? `${CHANNEL[a.channel] ?? a.channel}, our vendor` : CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
-  labelled(li.querySelector('.from'), 'From', a.from ?? '')
   li.querySelector('.body').textContent = a.body
   const badge = li.querySelector('.badge'), what = li.querySelector('.what')
   li.querySelector('.rule').textContent = a.status === 'done' && Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
@@ -299,10 +304,9 @@ async function loadTricks() {
 
 function trick(a) {
   const li = $('trick').content.firstElementChild.cloneNode(true)
-  li.querySelector('.who').textContent = `@${a.handle}`
+  sender(li, a)
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
-  labelled(li.querySelector('.from'), 'From', a.from ?? '')
   li.querySelector('.t-body').textContent = a.excerpt
   li.querySelector('.what').textContent = a.toAddr ? `${a.amount} ${unit} to ${short(a.toAddr)}` : ''
   li.querySelector('.rule').textContent = Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
@@ -397,19 +401,19 @@ $('text').addEventListener('input', () => {
   $('count').textContent = n
   $('count-wrap').className = `count${n >= limits.textChars ? ' full' : n >= limits.textChars * 0.9 ? ' near' : ''}`
 })
-try { $('handle').value = localStorage.getItem('handle') ?? '' } catch { /* storage blocked */ }
+// the page once kept a handle here; there is none any more, so an old one is cleared
+try { localStorage.removeItem('handle') } catch { /* storage blocked */ }
 
 $('form').addEventListener('submit', async e => {
   e.preventDefault()
   const msg = $('msg'), btn = $('send')
-  const handle = $('handle').value.trim(), text = $('text').value, from = $('from').value.trim()
+  const text = $('text').value, from = $('from').value.trim()
   const channel = new FormData($('form')).get('channel')
   btn.disabled = true; msg.textContent = 'Sending…'; msg.className = 'msg'
   try {
-    const r = await fetch('/api/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handle, channel, from, text }) })
+    const r = await fetch('/api/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ channel, from, text }) })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.error ?? `error ${r.status}`)
-    try { localStorage.setItem('handle', handle) } catch { /* storage blocked */ }
     $('text').value = ''; $('count').textContent = '0'; $('count-wrap').className = 'count'
     msg.textContent = `In the inbox (#${j.id}). Watch the feed.`
     loadFeed().catch(() => {})

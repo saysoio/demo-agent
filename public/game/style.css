@@ -240,11 +240,6 @@ input, textarea { font: inherit; font-size: 16px; color: var(--s50); background:
 input::placeholder, textarea::placeholder { color: var(--s300); opacity: 1; }
 input:focus, textarea:focus { outline: none; border-color: var(--chalk); box-shadow: 0 0 0 1px var(--chalk); }
 textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
-.handle-input { display: flex; align-items: center; background: var(--s900); border: 1px solid var(--s500); border-radius: 3px; padding-left: 12px; }
-.handle-input:focus-within { border-color: var(--chalk); box-shadow: 0 0 0 1px var(--chalk); }
-.handle-input input { border: 0; background: none; padding-left: 4px; }
-.handle-input input:focus { box-shadow: none; }
-.at { color: var(--s400); font-weight: 600; }
 .channels { border: 0; padding: 0; margin: 0; min-width: 0; }
 .channels legend { padding: 0; margin-bottom: 8px; }
 .seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -366,9 +361,6 @@ button.chip-v:hover { color: var(--s50); text-decoration-color: var(--chalk); }
 .chan { font-size: 13px; color: var(--s300); white-space: nowrap; }
 .meta time { margin-left: auto; font: 400 12px/1 var(--mono); color: var(--s300); white-space: nowrap; }
 .body { white-space: pre-wrap; color: var(--chalk); }
-.from { font: 400 12.5px/1.45 var(--mono); color: var(--s200); }
-.from .lab { font: 650 13px/1 var(--sans); color: var(--s300); }
-.from:empty { display: none; }
 .result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
 .what { font-family: var(--mono); font-size: 12px; color: var(--s200); }
 .what a { color: var(--s50); }

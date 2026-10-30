@@ -299,7 +299,7 @@ docker compose cp demo-agent:/app/data/$F ~/backups/$F && docker compose exec -T
 scp demo-vps-demo:backups/$F ~/Backups/demo-agent/
 ```
 
-The file holds player handles and texts: keep it private.
+The file holds player senders, texts, IP keys and the handles of tries from before 2026-10-31: keep it private.
 
 **Restore:** `docker compose down` (never `-v`, which deletes the volume), then
 

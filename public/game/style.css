@@ -101,6 +101,15 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
   -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(180deg, #000 70%, transparent); }
 .hero-in { display: grid; gap: 40px; align-items: center; }
 .hero-copy { display: grid; gap: 24px; justify-items: start; }
+.kicker-row { justify-self: stretch; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+/* the source link: a quiet readout-style pill, the GitHub mark at text size */
+.code-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 11px; border: 1px solid var(--s600); border-radius: 3px;
+  background: rgb(17 21 25 / .7); font-size: 13px; font-weight: 600; color: var(--s200); text-decoration: none; white-space: nowrap;
+  transition: border-color .15s var(--ease), color .15s var(--ease); }
+.code-chip:hover { border-color: var(--chalk); color: var(--s50); }
+.gh { width: 14px; height: 14px; flex: none; }
+.cc-short { display: none; }
+@media (max-width: 479px) { .cc-long { display: none; } .cc-short { display: inline; } }
 .kicker { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--s300); }
 .live-dot { width: 9px; height: 9px; background: var(--allow); box-shadow: 0 0 0 4px rgb(32 192 92 / .18); }
 .hero-act { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 4px; }
@@ -312,7 +321,6 @@ button.chip-v:hover { color: var(--s50); text-decoration-color: var(--chalk); }
 .guard-text[open] .chev { transform: rotate(225deg); }
 .guard-text p { padding: 14px; border: 1px solid var(--s700); border-radius: 3px; background: var(--s900); font-size: 14px; color: var(--s200); }
 .chev { flex: none; width: 9px; height: 9px; border-right: 2px solid var(--s300); border-bottom: 2px solid var(--s300); transform: rotate(45deg); transition: transform .2s var(--ease); }
-.code-link { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; color: var(--s50); }
 @media (max-width: 479px) { .caps > div, .facts > div { grid-template-columns: 5.75rem minmax(0, 1fr); } .payees li { padding: 10px; } }
 @media (max-width: 359px) { .payees li { grid-template-columns: auto minmax(0, 1fr); } .payees code, .payees .else b { grid-column: 2; } }
 

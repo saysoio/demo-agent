@@ -233,8 +233,8 @@ function ledger(s) {
 // the link appears only for an https URL the server sends
 function showSource(url) {
   const ok = typeof url === 'string' && url.startsWith('https://')
-  for (const a of [$('code-link'), $('foot-link')]) if (ok) a.href = url
-  $('code-link').hidden = !ok; $('foot-code').hidden = !ok
+  for (const a of [$('hero-code'), $('foot-link')]) if (ok) a.href = url
+  $('hero-code').hidden = !ok; $('foot-code').hidden = !ok
 }
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }

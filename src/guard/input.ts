@@ -79,7 +79,8 @@ const FROM_RULE: Record<Channel, string> = {
 }
 
 /** Who the agent is told sent the item. Spoofing a vendor or a colleague is allowed (it is the game); the shape is not
- *  free: one address, handle or name per channel, so the sender cannot carry instructions or break out of its attribute. */
+ *  free: one address, handle or short name per channel, so the sender cannot carry markup, an address or a long
+ *  instruction, or break out of its attribute. A short name can still say something ("Dana Okafor, CFO"): that is play. */
 export function parseFrom(v: unknown, channel: Channel): { ok: true; from: string } | { ok: false; error: string } {
   // only a page from before senders leaves the field out
   if (v === undefined) return fail('this page is out of date: reload it to get the From field')

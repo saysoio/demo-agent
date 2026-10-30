@@ -11,7 +11,7 @@ import {
   AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
   parseFeedQuery, parseSubmit, publicAttempt, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
 } from './guard/index.ts'
-import { rulesView } from './rules.ts'
+import { rulesView, type SignedRules } from './rules.ts'
 import { dayName, dayStart } from './spend.ts'
 import type { Store } from './store.ts'
 import type { Payer } from './wallet.ts'
@@ -27,7 +27,12 @@ const HEADERS = {
 
 const TRICKS = 10
 
-export interface ServerDeps { cfg: Config; store: Store; agent: Agent; payer: Payer; now?: () => number; log?: (m: string) => void }
+export interface ServerDeps {
+  cfg: Config; store: Store; agent: Agent; payer: Payer
+  /** what the owner signed (src/rules.ts loadRules); none: the published rules from the settings */
+  signed?: SignedRules | null
+  now?: () => number; log?: (m: string) => void
+}
 
 function send(res: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}) {
   res.writeHead(status, { ...HEADERS, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra })
@@ -48,7 +53,7 @@ export function makeServer(d: ServerDeps): Server {
   const admin = new AdminGate({ token: cfg.secrets.admin, localHeader: cfg.trustLocalHeader, now: d.now })
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
-  const rules = publicRules(rulesView(cfg))
+  const rules = publicRules(rulesView(cfg, d.signed ?? null))
 
   async function potView() {
     return publicPot({

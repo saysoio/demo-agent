@@ -13,9 +13,9 @@ import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { getAddress, parseUnits, type Address, type Hex } from 'viem'
 import { privateKeyToAccount, toAccount } from 'viem/accounts'
-import { compileMandate, providerSigner, registerWallet, setCheckMode, setMandate, type CallOptions } from 'saysoio'
-import { decimalsFor, loadConfig, unitName } from './config.ts'
-import { perPaymentCap, publishedRules, type Published } from './rules.ts'
+import { compileMandate, mandateHash, providerSigner, registerWallet, setCheckMode, setMandate, type CallOptions } from 'saysoio'
+import { decimalsFor, loadConfig, unitName, type Network, type Vendor } from './config.ts'
+import { perPaymentCap, publishedRules, SIGNED_RULES_FILE, type Published, type SignedRules } from './rules.ts'
 
 export { caps } from './config.ts'
 export { publishedRules, type Published } from './rules.ts'
@@ -58,6 +58,17 @@ export function compiledProblems(c: any, r: Published): string[] {
   if (Array.isArray(c.unresolved) && c.unresolved.length) p.push(`the compiler could not turn these into rules: ${c.unresolved.join('; ')}`)
   if (c.strictness !== 'strict' && c.strictness !== 'normal') p.push(`strictness is ${c.strictness ?? 'missing'}, not strict or normal`)
   return p
+}
+
+/** What the box is given of the signed mandate (src/rules.ts): the published text and caps, the vendors, and the
+ *  strictness and hash of what sayso compiled and the owner signed. */
+export function signedRecord(r: Published, vendors: Vendor[], network: Network, signed: unknown, mandateId: Hex | null, at: Date): SignedRules {
+  const c = signed as { strictness?: unknown }
+  if (c.strictness !== 'strict' && c.strictness !== 'normal') throw new Error('the signed rules have no strict or normal strictness')
+  return {
+    text: r.text, vendors: vendors.map(v => ({ name: v.name, address: v.address })), max: r.max, daily: r.daily, weekly: r.weekly,
+    asset: r.asset, network, strictness: c.strictness, mandateId, mandateHash: mandateHash(signed), signedAt: at.toISOString(),
+  }
 }
 
 /** sayso refuses its enforce switch until a Telegram chat is linked for the wallet (409); the SDK's error carries it. */
@@ -103,12 +114,15 @@ async function main() {
 
   const opts: CallOptions = { chainId: cfg.chainId, ...(env.DEMO_INVITE ? { invite: env.DEMO_INVITE } : {}) }
   const { apiKey } = await registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts)
-  await setMandate(cfg.saysoApi, owner, agent.address, rules.text, { ...compiled, summary: rules.text }, opts)
+  const signed = { ...compiled, summary: rules.text }
+  const { mandateId } = await setMandate(cfg.saysoApi, owner, agent.address, rules.text, signed, opts)
   const switched = await switchEnforce(() => setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts))
   mkdirSync(cfg.dataDir, { recursive: true })
   const file = join(cfg.dataDir, 'sayso-api-key')
   writeFileSync(file, `${apiKey}\n`, { mode: 0o600 })
-  console.log(`done: ${agent.address} registered, rules signed, enforce on${switched ? '' : ' in the SDK (server switch off)'}. API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box).`)
+  const rulesFile = join(cfg.dataDir, SIGNED_RULES_FILE)
+  writeFileSync(rulesFile, `${JSON.stringify(signedRecord(rules, cfg.vendors, cfg.network, signed, mandateId ?? null, new Date()), null, 2)}\n`, { mode: 0o644 })
+  console.log(`done: ${agent.address} registered, rules signed, enforce on${switched ? '' : ' in the SDK (server switch off)'}. API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box); the signed rules to ${rulesFile} (copy it to the box's data volume).`)
 }
 
 if (import.meta.main) main().catch(e => { console.error(`setup failed: ${(e as Error).message}`); process.exit(1) })

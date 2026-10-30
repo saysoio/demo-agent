@@ -15,7 +15,7 @@ export const POT_FIELDS = [
 ] as const
 
 export const RULES_FIELDS = [
-  'source', 'text', 'unit', 'network', 'vendors', 'perPayment', 'daily', 'weekly', 'actions', 'strictness', 'sdk', 'checkServer', 'signedVerdicts',
+  'source', 'signedAt', 'text', 'unit', 'network', 'vendors', 'perPayment', 'daily', 'weekly', 'actions', 'strictness', 'sdk', 'checkServer', 'signedVerdicts',
 ] as const
 
 /** A stopped trick shows the player text as a short excerpt, never in full. */

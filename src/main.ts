@@ -8,6 +8,7 @@ import { FakeBrain, HaikuBrain, systemPrompt } from './brain.ts'
 import { decimalsFor, loadConfig, type LlmSettings } from './config.ts'
 import { isolationProblems, processProbe } from './isolation.ts'
 import { proxyTrustProblem } from './guard/index.ts'
+import { loadRules } from './rules.ts'
 import { makeServer } from './server.ts'
 import { callCost, dailySpendLog, dayStart, type Usage } from './spend.ts'
 import { Store } from './store.ts'
@@ -33,6 +34,7 @@ async function main() {
   const proxy = proxyTrustProblem(cfg)
   if (proxy) throw new Error(proxy)
 
+  const signed = loadRules(cfg)
   const store = new Store(join(cfg.dataDir, 'demo.db'))
   const decimals = decimalsFor(cfg.asset)
   let payer: Payer
@@ -51,7 +53,7 @@ async function main() {
   const maxPerPayment = cfg.maxPerPayment ? parseUnits(cfg.maxPerPayment, decimals) : undefined
   const agent = new Agent({ store, brain, payer, asset: cfg.asset, vendors: cfg.vendors, maxPerPayment, budget, log })
   agent.start({ tickMs: cfg.tickMs, vendorInvoiceEveryMs: cfg.vendorInvoiceEveryMs })
-  const server = makeServer({ cfg, store, agent, payer, log })
+  const server = makeServer({ cfg, store, agent, payer, signed, log })
   server.listen(cfg.port, cfg.host, () => log(`demo-agent on http://${cfg.host}:${cfg.port}/game/ (${cfg.network}, ${cfg.asset}, wallet ${payer.address}${cfg.fake ? ', FAKE' : modelRoute(cfg.llm)}${agent.paused() ? `, PAUSED: ${agent.paused()}` : ''})`))
 
   const spendLog = setInterval(dailySpendLog((from, to) => store.spend(from, to), log), 60_000)

@@ -67,6 +67,9 @@ const NETWORKS: Record<Network, { chainId: number; explorer: string; publicRpc: 
   base: { chainId: 8453, explorer: 'https://basescan.org', publicRpc: 'https://mainnet.base.org', saysoApi: 'https://api.saysoio.com', usdc: getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') },
 }
 
+/** sayso's own server for the network, the one the page may name */
+export const defaultSaysoApi = (network: Network) => NETWORKS[network].saysoApi
+
 /** DEMO_VENDORS: `Name=0xAddress=usual amount;…`. Every vendor address must be a wallet we control. */
 export function parseVendors(v: string | undefined): Vendor[] {
   if (!v?.trim()) return []

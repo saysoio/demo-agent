@@ -147,12 +147,31 @@ With a clone, updates are `git pull --ff-only` instead of the archive above.
 1. In `~/Code/demo-agent`, create `.env.setup` (git ignores it), `chmod 600 .env.setup`, and fill it yourself: the CDP
    keys of the dedicated CDP project, `OWNER_PRIVATE_KEY`, `DEMO_NETWORK`, `DEMO_ASSET`, `DEMO_VENDORS`,
    `DEMO_MAX_PER_PAYMENT`, `DEMO_DAILY_CAP` (see the end of `.env.example`).
-2. `npm run setup`. Read the compiled rules, type "sign". It writes the agent's sayso API key to `data/sayso-api-key`.
-3. Copy that key to the box (step 6 moves it into `.env` and deletes the copy):
+2. `npm run setup`. Read the compiled rules, type "sign". It writes the agent's sayso API key to `data/sayso-api-key`
+   and what was signed to `data/signed-rules.json` (the published text, vendors, caps, asset, strictness, mandate id and
+   hash, time; nothing secret).
+3. Copy both to the box (step 6 moves the key into `.env` and deletes the copy):
 
    ```bash
    chmod 600 data/sayso-api-key
    scp -p data/sayso-api-key demo-vps-demo:sayso-api-key
+   scp data/signed-rules.json demo-vps-demo:signed-rules.json
+   ```
+
+4. Put the rules file on the data volume, where the box reads it (`/app/data/signed-rules.json`). The page's
+   "Security layer" then shows the signed rules. On `base` the box refuses to start without it, and with it the box
+   refuses to start when `DEMO_NETWORK`, `DEMO_ASSET`, `DEMO_MAX_PER_PAYMENT` or `DEMO_VENDORS` differ from what was
+   signed. On `base-sepolia` without it the page shows the rules rebuilt from `.env`, labelled "published rules".
+   After each new setup, copy the new file the same way:
+
+   ```bash
+   ssh demo-vps-demo
+   cd ~/demo-agent
+   chmod 644 ~/signed-rules.json  # the app's user must be able to read it
+   docker compose create --build # the container must exist to copy into its volume
+   docker compose cp ~/signed-rules.json demo-agent:/app/data/signed-rules.json
+   rm ~/signed-rules.json
+   docker compose up -d         # or: docker compose restart, when it was already running
    ```
 
 ## 6. The box's `.env` (as demo, typed by you)
@@ -307,6 +326,6 @@ Each line is done, by the person named, before the next.
    ("Before the real pot", 1): USDC `transfer` to the vendor addresses under the per-payment cap, everything else denied.
 4. **Alex's decision:** the written go/no-go on real funds (amount and date) from Alex.
 5. **Switch:** on the Mac, `npm run setup` again with `DEMO_NETWORK=base`, `DEMO_ASSET=usdc`, the invite and the real
-   caps; copy the new `sayso-api-key` over (step 5). On the box set `DEMO_NETWORK=base`, `DEMO_ASSET=usdc`,
+   caps; copy the new `sayso-api-key` and `signed-rules.json` over (step 5). On the box set `DEMO_NETWORK=base`, `DEMO_ASSET=usdc`,
    `DEMO_MAX_PER_PAYMENT` to the signed cap, then `docker compose up -d`. Verify the USDC address with `cast code`.
 6. **Fund:** the founder sends the pot to the agent wallet shown on `/game/`. Nobody else moves real funds.

@@ -164,7 +164,7 @@ test('spend is for the operator: the admin gate guards it and the public pot nev
 
 test('the pot passes only the named fields of its nested objects', async () => {
   const pot = await (await fetch(url + '/api/pot')).json() as any
-  assert.deepEqual(Object.keys(pot.stats), ['attempts', 'blocked', 'paid', 'wins', 'pending'])
+  assert.deepEqual(Object.keys(pot.stats), ['attempts', 'blocked', 'paid', 'wins', 'pending', 'vendorPaid'])
   assert.deepEqual(Object.keys(pot.vendors[0]), ['name', 'address'])
   assert.deepEqual(Object.keys(pot.limits), ['textChars', 'feedPage'])
 })
@@ -176,6 +176,43 @@ test('a budget pause shows on the pot as paused for budget', async () => {
   assert.ok(pot.paused)
   agent.resume()
   assert.equal(((await (await fetch(url + '/api/pot')).json()) as any).budgetPaused, false)
+})
+
+const CSP = "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
+// what the strict policy would block, so a page that has any of it would break: inline scripts and styles, handlers,
+// and anything loaded from another origin
+function assertSelfContained(html: string, page: string) {
+  for (const m of html.matchAll(/<script\b([^>]*)>/gi)) assert.match(m[1], /\bsrc="\/game\//, `${page}: a script without a /game/ src`)
+  assert.doesNotMatch(html, /<style\b|\sstyle="|\son[a-z]+=/i, `${page}: inline style or handler`)
+  for (const m of html.matchAll(/<(?:link|script|img|source|iframe)\b[^>]*\b(?:href|src)="([^"]+)"/gi)) assert.match(m[1], /^\/game\//, `${page}: loads ${m[1]}`)
+}
+
+test('the game page carries the terms footer, links the rules and privacy, and never says prize or bounty', async () => {
+  const r = await fetch(url + '/game/')
+  assert.equal(r.headers.get('content-security-policy'), CSP)
+  const html = await r.text()
+  assertSelfContained(html, '/game/')
+  const foot = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'))
+  for (const s of ['Base Sepolia', 'test ETH that has no value', '18 or older', 'sanctions list', 'public on the feed', 'mailto:security@saysoio.com',
+    'sayso team', 'Not affiliated with Devcon or the Ethereum Foundation', 'href="/game/rules.html"', 'href="https://saysoio.com/privacy"']) assert.ok(foot.includes(s), s)
+  assert.ok(html.includes('The transfer is yours (test ETH, no value).'))
+  assert.doesNotMatch(html, /prize|bount/i)
+})
+
+test('the rules page is served under the same policy, with the win, conduct and privacy sections', async () => {
+  const r = await fetch(url + '/game/rules.html')
+  assert.equal(r.status, 200)
+  assert.equal(r.headers.get('content-security-policy'), CSP)
+  assert.match(r.headers.get('content-type')!, /^text\/html/)
+  const html = await r.text()
+  assertSelfContained(html, '/game/rules.html')
+  assert.match(html, /\/game\/style\.css\?v=[0-9a-f]{10}"/, 'the stylesheet is named by content hash')
+  for (const s of ['How a round works', 'The transfer is yours (test ETH, no value).', 'The game pauses after a win', 'There are no prizes', 'not a prize',
+    '18 or older', 'sanctions', 'Do not impersonate real people or real companies', 'We may remove any entry and block any player', 'can change or stop at any time',
+    'Privacy notice', 'IPv4 address in full', 'no end date', 'Anthropic', 'Amsterdam', 'mailto:security@saysoio.com', 'https://saysoio.com/privacy']) assert.ok(html.includes(s), s)
+  assert.doesNotMatch(html, /secures|guarantee|100%|audited/i)
+  assert.equal(r.headers.get('cache-control'), 'no-cache')
 })
 
 test('the page is served with a strict policy, and nothing outside public/game is', async () => {

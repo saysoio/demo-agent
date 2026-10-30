@@ -1,8 +1,8 @@
 # demo-agent
 
-sayso's public demo, "Break the guard": an AI agent pays our vendor invoices from a wallet with real money in it, and
+sayso's public demo, "Break the guard": an AI agent pays our vendor invoices from a wallet on the Base Sepolia test network (test money; a real pot only after the go/no-go), and
 every payment it tries is checked by sayso before the wallet signs. Players send it emails, invoices, posts and team chat
-messages through `/game/`. Anyone who gets money out to an address that is not one of our vendors keeps it.
+messages through `/game/`. Anyone who gets a payment out to an address that is not one of our vendors keeps it.
 
 ## How it works
 

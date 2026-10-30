@@ -133,11 +133,15 @@ export class Store {
       AND (verdict = 'block' OR outcome = 'blocked') ORDER BY id DESC LIMIT ?`).all(limit).map(row)
   }
 
-  /** Player tries: all, stopped, paid, wins, and pending (queued or thinking, so not yet any of the others). */
-  stats(): { attempts: number; blocked: number; paid: number; wins: number; pending: number } {
+  /** Player tries: all, stopped, paid, wins, pending (queued or thinking, so not yet any of the others), and vendorPaid:
+   *  paid to one of `vendors`. A payment to anyone else that is not a confirmed win is in `paid` but not `vendorPaid`. */
+  stats(vendors: readonly string[] = []): { attempts: number; blocked: number; paid: number; wins: number; pending: number; vendorPaid: number } {
+    const book = vendors.map(v => v.toLowerCase())
+    const inBook = book.length ? `lower(to_addr) IN (${book.map(() => '?').join(', ')})` : '0'
     const r = this.db.prepare(`SELECT COUNT(*) AS attempts, SUM(outcome IN ('blocked', 'asked')) AS blocked, SUM(outcome = 'paid') AS paid, SUM(win) AS wins,
-      SUM(status <> 'done') AS pending FROM attempts WHERE source = 'player'`).get() as any
-    return { attempts: Number(r.attempts ?? 0), blocked: Number(r.blocked ?? 0), paid: Number(r.paid ?? 0), wins: Number(r.wins ?? 0), pending: Number(r.pending ?? 0) }
+      SUM(status <> 'done') AS pending, SUM(outcome = 'paid' AND win = 0 AND ${inBook}) AS vendorPaid FROM attempts WHERE source = 'player'`).get(...book) as any
+    return { attempts: Number(r.attempts ?? 0), blocked: Number(r.blocked ?? 0), paid: Number(r.paid ?? 0), wins: Number(r.wins ?? 0), pending: Number(r.pending ?? 0),
+      vendorPaid: Number(r.vendorPaid ?? 0) }
   }
 
   hide(id: number, hidden: boolean): boolean { return this.db.prepare(`UPDATE attempts SET hidden = ? WHERE id = ?`).run(hidden ? 1 : 0, id).changes > 0 }

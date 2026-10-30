@@ -97,7 +97,7 @@ const field = (() => {
   let twinkle = 0
   const twinkleTimer = () => {
     if (motion() && !twinkle) twinkle = setInterval(sparkle, 180)
-    else if (!motion() && twinkle) { clearInterval(twinkle); twinkle = 0 }
+    else if (!motion() && twinkle) { clearInterval(twinkle); twinkle = 0; if (lit.size && !ringAt) { lit.clear(); draw() } }
   }
   function sparkle() {
     if (ringAt || !dots.length) return
@@ -209,12 +209,14 @@ async function loadPot() {
 const CELLS_MAX = 160
 let ledgerKey = ''
 function ledger(s) {
-  // pending tries (in line or being thought about) have no outcome yet; the rest made no payment at all (ignored,
-  // nothing to pay, no answer, not sent or paused)
-  const pending = s.pending ?? 0, vendorPaid = Math.max(0, s.paid - s.wins), other = Math.max(0, s.attempts - s.blocked - s.paid - pending)
+  // pending tries (in line or being thought about) have no outcome yet; a payment sent to a non-vendor that is not a
+  // confirmed win waits with them (the game pauses until it is checked onchain); the rest made no payment at all
+  // (ignored, nothing to pay, no answer, not sent or paused)
+  const vendorPaid = Math.max(0, Math.min(s.vendorPaid ?? 0, s.paid - s.wins))
+  const pending = (s.pending ?? 0) + Math.max(0, s.paid - s.wins - vendorPaid), other = Math.max(0, s.attempts - s.blocked - s.paid - (s.pending ?? 0))
   $('s-attempts').textContent = s.attempts; $('s-blocked').textContent = s.blocked; $('s-paid').textContent = vendorPaid
   $('s-other').textContent = other; $('s-wins').textContent = s.wins
-  const key = [s.attempts, s.blocked, s.paid, s.wins, pending].join()
+  const key = [s.attempts, s.blocked, s.paid, s.wins, pending, vendorPaid].join()
   if (key === ledgerKey) return
   ledgerKey = key
   const per = Math.max(1, Math.ceil(s.attempts / CELLS_MAX)), n = x => (x > 0 ? Math.max(1, Math.round(x / per)) : 0)
@@ -355,7 +357,7 @@ async function loadFeed() {
     const fresh = !shown.has(a.id), was = waiting.has(a.id)
     const li = render(a)
     // a verdict that lands while the page is open sends a ring through the dot field
-    if (a.status === 'done' && (was || (fresh && !first))) field.ring(a.win || a.outcome === 'blocked' ? 'block' : a.outcome === 'paid' ? 'allow' : null)
+    if (a.status === 'done' && (was || (fresh && !first))) field.ring(a.win || a.outcome === 'blocked' || a.outcome === 'asked' ? 'block' : a.outcome === 'paid' ? 'allow' : null)
     if (fresh && a.id > newest) { list.prepend(li); if (!first) added++ }
     else if (fresh) list.append(li)
     newest = Math.max(newest, a.id); oldest = oldest === null ? a.id : Math.min(oldest, a.id)

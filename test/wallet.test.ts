@@ -7,7 +7,7 @@ import { custom, getAddress, parseGwei, parseTransaction, type Address, type Hex
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { DEFAULT_FEE_BOUNDS, modeQueryDigest, OATHLINE_TYPES, oathlineDomain, txDigest } from 'saysoio'
 import { loadConfig } from '../src/config.ts'
-import { feeBounds, SaysoPayer } from '../src/wallet.ts'
+import { feeBounds, gatedSigner, SaysoPayer } from '../src/wallet.ts'
 
 const VENDOR: Address = getAddress('0x1111111111111111111111111111111111111111')
 const CTX = { reason: 'pay the invoice', inputs: ['invoice'] }
@@ -28,13 +28,14 @@ async function receipt(verdict: string, digest: Hex, wallet: Address, by = sayso
   return { ...r, signer: by.address, signature }
 }
 
-type Answer = 'allow' | 'block' | 'ask' | 'forged-allow' | 'refusal' | 'outage' | 'down' | 'hang'
+type Answer = 'allow' | 'block' | 'ask' | 'ask-owner' | 'forged-allow' | 'refusal' | 'outage' | 'down' | 'hang'
 /** a pretend sayso: every check gets `answer`; counts the checks */
-function sayso(wallet: Address, answer: Answer, seen = { checks: 0 }) {
+function sayso(wallet: Address, answer: Answer, seen = { checks: 0, approvals: 0 }) {
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const u = String(url)
     if (u.endsWith('/unchecked')) return json(200, { ok: true })
     if (u.includes('/wallets/')) return json(200, { kind: 'plain' })
+    if (u.includes('/approvals/')) { seen.approvals++; return json(200, { status: 'pending' }) }
     const b = JSON.parse(String(init?.body))
     if (u.endsWith('/mode')) return json(200, { wallet, mode: await modeStatement(modeQueryDigest(wallet, b.nonce, 8453), wallet) })
     seen.checks++
@@ -43,9 +44,10 @@ function sayso(wallet: Address, answer: Answer, seen = { checks: 0 }) {
     if (answer === 'hang') return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason)))
     if (answer === 'refusal') return json(403, { error: 'no mandate for this wallet', code: 'no-mandate' })
     const d = txDigest({ wallet, to: b.tx.to, data: b.tx.data, value: b.tx.value !== undefined ? BigInt(b.tx.value) : undefined, nonce: b.tx.nonce }, 8453)
-    const verdict = answer === 'forged-allow' ? 'allow' : answer
+    const verdict = answer === 'forged-allow' ? 'allow' : answer === 'ask-owner' ? 'ask' : answer
     const rules = answer === 'block' ? [{ id: 'recipient-unknown', verdict: 'block' }] : []
-    return json(200, { verdict, reason: `pretend ${verdict}`, rules, receipt: await receipt(verdict, d, wallet, answer === 'forged-allow' ? forger : saysoKey), mode: await modeStatement(d, wallet) })
+    return json(200, { verdict, reason: `pretend ${verdict}`, rules, receipt: await receipt(verdict, d, wallet, answer === 'forged-allow' ? forger : saysoKey), mode: await modeStatement(d, wallet),
+      ...(answer === 'ask-owner' ? { approval: { id: 'ap_1', channel: 'telegram', expiresAt: now() + 600 } } : {}) })
   }
 }
 
@@ -68,7 +70,7 @@ function node(sent: Hex[], baseFee = parseGwei('0.005'), priority = parseGwei('0
 /** a payer on a fresh agent key (the SDK's hourly fee budget is per wallet), counting every signature the key makes */
 function payer(answer: Answer, o: { baseFee?: bigint; env?: Record<string, string> } = {}) {
   const key = privateKeyToAccount(generatePrivateKey())
-  const signs = { n: 0 }, seen = { checks: 0 }, sent: Hex[] = []
+  const signs = { n: 0 }, seen = { checks: 0, approvals: 0 }, sent: Hex[] = []
   const counted = { ...key, signTransaction: (tx: any, opts?: any) => { signs.n++; return key.signTransaction(tx, opts) } }
   const p = new SaysoPayer(cfg(o.env), counted as any, { fetch: sayso(key.address, answer, seen) as typeof fetch, signer: saysoKey.address, transport: node(sent, o.baseFee) })
   return { p, signs, seen, sent }
@@ -188,4 +190,38 @@ test('feeBounds tighten the SDK defaults to DEMO_MAX_FEE_GWEI and our gas limit'
   // a loose ceiling never loosens the SDK's own defaults
   assert.deepEqual(feeBounds('1000', getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913')), { ...DEFAULT_FEE_BOUNDS })
   assert.throws(() => feeBounds('0', null), /DEMO_MAX_FEE_GWEI must be above 0/)
+})
+
+test('an ask put to the owner is not waited for and not signed', async () => {
+  const { p, signs, sent, seen } = payer('ask-owner')
+  const t0 = Date.now()
+  const r = await p.pay(VENDOR, 1000n, CTX, go)
+  assert.ok(Date.now() - t0 < 2_000)
+  assert.equal(r.outcome, 'asked')
+  assert.equal(r.verdict, 'ask')
+  assert.match(r.note!, /does not wait for approval/)
+  assert.equal(seen.approvals, 0)
+  assert.equal(signs.n, 0)
+  assert.deepEqual(sent, [])
+  // the queue is free: the next payment is checked at once
+  assert.equal((await p.pay(VENDOR, 1000n, CTX, go)).outcome, 'asked')
+  assert.equal(seen.checks, 2)
+})
+
+test('our signer refuses without a verified allow, when paused, and for messages', async () => {
+  const key = privateKeyToAccount(generatePrivateKey())
+  let n = 0
+  const inner = { ...key, signTransaction: (tx: any, o?: any) => { n++; return key.signTransaction(tx, o) } }
+  const tx = { to: VENDOR, value: 1n, chainId: 8453, nonce: 0, gas: 21_000n, maxFeePerGas: 1n, maxPriorityFeePerGas: 1n, type: 'eip1559' as const }
+  const state = { paused: false, allowed: false }
+  const s = gatedSigner(inner as any, () => state.paused, () => state.allowed)
+  await assert.rejects(s.signTransaction!(tx), { name: 'NoVerifiedAllow' })
+  state.paused = true; state.allowed = true
+  await assert.rejects(s.signTransaction!(tx), { name: 'GamePaused' })
+  assert.equal(n, 0)
+  state.paused = false
+  assert.equal(parseTransaction(await s.signTransaction!(tx)).to?.toLowerCase(), VENDOR.toLowerCase())
+  assert.equal(n, 1)
+  await assert.rejects(s.signMessage!({ message: 'hi' }), /signs no messages/)
+  await assert.rejects(s.signTypedData!({ domain: {}, types: { M: [{ name: 'a', type: 'uint256' }] }, primaryType: 'M', message: { a: 1n } } as any), /signs no typed data/)
 })

@@ -33,6 +33,7 @@ export interface Payer {
 class GamePaused extends Error { constructor() { super('the game was paused before signing'); this.name = 'GamePaused' } }
 class FeesTooHigh extends Error { constructor() { super('network fees are above DEMO_MAX_FEE_GWEI'); this.name = 'FeesTooHigh' } }
 class NoVerifiedAllow extends Error { constructor() { super('no verified allow from sayso for this payment'); this.name = 'NoVerifiedAllow' } }
+class AskNotAwaited extends Error { constructor() { super('sayso asked the owner; the agent does not wait for an answer'); this.name = 'AskNotAwaited' } }
 
 /** Test seams only: main.ts passes none. `signer` names the key sayso's verdicts must be signed by (the SDK's built-in
  *  one for sayso's servers otherwise). */
@@ -66,6 +67,18 @@ export const chainFor = (chainId: number): Chain => {
 
 const isVerdict = (v: unknown): v is 'allow' | 'ask' | 'block' => v === 'allow' || v === 'ask' || v === 'block'
 
+/** The only signer the guarded client gets: no messages, no typed data, and a transaction only while the game is not
+ *  paused and the SDK has reported a verified allow for the payment in progress. */
+export function gatedSigner(inner: Account, paused: () => boolean, allowed: () => boolean): Account {
+  if (inner.type !== 'local' || !inner.signTransaction) throw new Error('the agent account must sign transactions itself')
+  return toAccount({
+    address: inner.address,
+    signMessage: () => Promise.reject(new Error('the agent signs no messages')),
+    signTypedData: () => Promise.reject(new Error('the agent signs no typed data')),
+    signTransaction: (tx, o) => (paused() ? Promise.reject(new GamePaused()) : !allowed() ? Promise.reject(new NoVerifiedAllow()) : inner.signTransaction!(tx, o)),
+  })
+}
+
 export class SaysoPayer implements Payer {
   readonly address: Address
   private readonly cfg: Config
@@ -92,19 +105,16 @@ export class SaysoPayer implements Payer {
       fees: feeBounds(cfg.maxFeeGwei, cfg.token),
       context: () => ({ reason: this.ctx.reason, inputs: this.ctx.inputs }),
       onDecision: (result: CheckResult, _tx: unknown, decision: Decision) => this.decided(result, decision),
+      // 0.7.0 has no option to skip waiting for the owner's answer to an ask (it polls until the request expires, about
+      // 10 minutes, and would hold the payment queue). onWaiting runs just before that wait and its throw leaves gate()
+      // before anything is signed, so an ask the owner is asked about is not waited for and not signed.
+      onWaiting: (result: CheckResult) => { this.last = result; throw new AskNotAwaited() },
       ...(testing.fetch ? { fetch: testing.fetch } : {}),
       ...(testing.signer ? { signer: testing.signer } : {}),
     })
-    if (account.type !== 'local' || !account.signTransaction) throw new Error('the agent account must sign transactions itself')
-    const inner = account
     // the pause once more between sayso's allow and the signature (an admin pause during a check stops it here), and
     // no signature at all without the SDK's verified allow for this payment
-    const signer = toAccount({
-      address: inner.address,
-      signMessage: () => Promise.reject(new Error('the agent signs no messages')),
-      signTypedData: () => Promise.reject(new Error('the agent signs no typed data')),
-      signTransaction: (tx, o) => (this.stop() ? Promise.reject(new GamePaused()) : !this.allowed ? Promise.reject(new NoVerifiedAllow()) : inner.signTransaction!(tx, o)),
-    })
+    const signer = gatedSigner(account, () => this.stop(), () => this.allowed)
     const transport = testing.transport ?? http(cfg.rpcUrl)
     this.guarded = oathline.guard(createWalletClient({ account: signer, chain, transport }))
     this.reader = createPublicClient({ chain, transport })
@@ -164,6 +174,7 @@ export class SaysoPayer implements Payer {
       else if (e instanceof OathlineBlocked && this.refusedAfterAllow) { outcome = 'error'; note = 'allowed by Sayso, but the SDK refused the signed transaction (fee above the bound, or not the checked one); not sent' }
       else if (e instanceof OathlineBlocked) outcome = 'blocked'
       else if (e instanceof OathlineNeedsApproval) outcome = 'asked'
+      else if (e instanceof AskNotAwaited) { outcome = 'asked'; note = 'Sayso asked the owner; the agent does not wait for approval, not signed' }
       else if (e instanceof OathlineUnavailable) { outcome = 'unavailable'; note = 'no verified answer from Sayso in time; not signed' }
       else if (this.lastCheck()?.verdict === 'allow') { outcome = 'error'; note = 'allowed by Sayso, but the network did not accept the transaction' }
       else { outcome = 'error'; note = 'not signed (wallet error)' }

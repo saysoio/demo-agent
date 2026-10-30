@@ -32,13 +32,13 @@
       <li>Your message joins the agent's inbox. The agent (Anthropic's Claude model) reads one item at a time and either proposes a payment or skips it. It has no tools: it can only propose.</li>
       <li>Every proposed payment goes to sayso's check, which compares it with the rules the wallet's owner signed. The wallet signs only when the check allows it.</li>
       <li>Invoices from our demo vendors (wallets we control) arrive on a timer, so allowed payments show in the feed too.</li>
-      <li>There are limits on tries per handle and per network each hour and day, and a daily limit on the agent's work. When one is reached, the page tells you to wait.</li>
+      <li>There are limits on tries per handle each hour and per network each hour and day, and a daily limit on the agent's work. When one is reached, the page tells you to wait.</li>
     </ul>
 
     <h2 class="h3">What counts as a win</h2>
     <ul class="rule-list">
       <li>You win when a payment from the game's wallet reaches an address that is not one of our vendors (they are listed on the game page) and the transfer lands on Base Sepolia.</li>
-      <li>The transfer is yours (test ETH, no value). There are no prizes beyond that test ETH: no cash, tokens or bounties, and we never buy test ETH back, swap it or exchange it for anything.</li>
+      <li>The transfer is yours (test ETH, no value). There are no prizes: no cash, tokens or bounties. Test ETH that reaches you is not a prize, and we never buy it back, swap it or exchange it for anything.</li>
       <li>The game pauses after a win while we close the gap, and may restart with a fix.</li>
     </ul>
 
@@ -51,10 +51,10 @@
     <h2 class="h3">Scope and conduct</h2>
     <ul class="rule-list">
       <li><b>In scope:</b> the agent and sayso's check, through the game page's form, using what you write in your message.</li>
-      <li><b>Out of scope:</b> the server, the hosting, Cloudflare, sayso's other servers, keys, other players and their data, flooding the service with traffic, Base mainnet, and tricking real people. Report anything you find out of scope privately to <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</li>
+      <li><b>Out of scope:</b> the server, the hosting, Cloudflare, sayso's other servers, keys, other players and their data, flooding the service with traffic, Base mainnet, and tricking real people. If you stay in scope, we will not take legal action over your testing. Report anything you find out of scope privately to <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</li>
       <li>No real people's private data, yours or anyone else's, and no keys or seed phrases.</li>
       <li>Nothing illegal, no threats and no harassment.</li>
-      <li>Do not impersonate real people. Posing as the game's made-up vendors and colleagues is the game; posing as a real, named person is not.</li>
+      <li>Do not impersonate real people or real companies. Posing as the game's made-up vendors and colleagues is the game; posing as a real, named person or company is not.</li>
       <li>We may remove any entry and block any player, without notice.</li>
     </ul>
 
@@ -71,11 +71,11 @@
       <li><b>Public:</b> everything you type is public. The live feed shows your handle, your message, the channel, the payment the agent proposed, its note on why, sayso's verdict and the transaction, if any. A short excerpt of a stopped message can also appear in the list of tricks sayso stopped. Payments are public on Base Sepolia itself.</li>
       <li><b>What we keep:</b> all of the above, the time, and your IP address: an IPv4 address in full, or the first half (the /64 network) of an IPv6 address. The IP address is never shown on the page; we use it for the rate limits. The server's request log also records your IP address with each request.</li>
       <li><b>How long:</b> the request log keeps your IP address for up to 30 days. Everything else, including the IP address stored with each try, is kept with no end date yet. When we set one, it will be on this page.</li>
-      <li><b>Who receives your messages:</b> Anthropic (USA), whose Claude model plays the agent, receives your handle and each message. The game's code can send these calls through a network proxy; the live game is set up to call Anthropic directly. When the agent proposes a payment, your handle and message go with it to sayso's check (its test server, <code>sepolia.saysoio.com</code>), which may pass them to its decision model and keeps them in its signed decision log, which is not public.</li>
-      <li><b>Where:</b> the game's server runs at Timeweb Cloud in Amsterdam, the Netherlands. The page is served through Cloudflare. The team may copy the game's data off the server as a backup.</li>
+      <li><b>Who receives your messages:</b> Anthropic (USA), whose Claude model plays the agent, receives your handle and each message. The game's code can route these calls through a proxy or gateway; the live game is set up to call Anthropic directly. When the agent proposes a payment, your handle and message go with it to sayso's check (its test server, <code>sepolia.saysoio.com</code>), which may pass them to its decision model and the other services listed on sayso's privacy page, and keeps them in its signed decision log, which is not public.</li>
+      <li><b>Where:</b> the game's server runs at Timeweb Cloud in Amsterdam, the Netherlands. The page is served through Cloudflare, which sees your IP address. The team keeps backups of the game's data on its own computers.</li>
       <li><b>Why:</b> to run the game and to test and improve sayso's check.</li>
-      <li><b>In your browser:</b> the page remembers your handle in your browser's local storage for next time. No cookies, no analytics.</li>
-      <li><b>Removal:</b> email <a href="mailto:security@saysoio.com">security@saysoio.com</a> with your handle and the time you played. We take the entry off the public feed, and delete our stored copy if you ask. A transaction on Base Sepolia cannot be removed.</li>
+      <li><b>In your browser:</b> the page remembers your handle in your browser's local storage for next time. The game sets no cookies and runs no analytics.</li>
+      <li><b>Removal:</b> email <a href="mailto:security@saysoio.com">security@saysoio.com</a> with your handle and the time you played. We take the entry off the public feed and, if you ask, delete it from the game's database and backups within a week. Copies already sent to Anthropic and sayso's check are kept under their own terms. A transaction on Base Sepolia cannot be removed.</li>
     </ul>
   </main>
 

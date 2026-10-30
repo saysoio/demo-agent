@@ -187,8 +187,8 @@ test('the rules page is served under the same policy, with the win, conduct and 
   const html = await r.text()
   assertSelfContained(html, '/game/rules.html')
   assert.match(html, /\/game\/style\.css\?v=[0-9a-f]{10}"/, 'the stylesheet is named by content hash')
-  for (const s of ['How a round works', 'The transfer is yours (test ETH, no value).', 'The game pauses after a win', 'no prizes beyond that test ETH',
-    '18 or older', 'sanctions', 'Do not impersonate real people', 'We may remove any entry and block any player', 'can change or stop at any time',
+  for (const s of ['How a round works', 'The transfer is yours (test ETH, no value).', 'The game pauses after a win', 'There are no prizes', 'not a prize',
+    '18 or older', 'sanctions', 'Do not impersonate real people or real companies', 'We may remove any entry and block any player', 'can change or stop at any time',
     'Privacy notice', 'IPv4 address in full', 'no end date', 'Anthropic', 'Amsterdam', 'mailto:security@saysoio.com', 'https://saysoio.com/privacy']) assert.ok(html.includes(s), s)
   assert.doesNotMatch(html, /secures|guarantee|100%|audited/i)
   assert.equal(r.headers.get('cache-control'), 'no-cache')

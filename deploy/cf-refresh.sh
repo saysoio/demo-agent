@@ -10,7 +10,7 @@
 # A failed fetch, or a list that does not look like Cloudflare's, changes nothing: the rules in force stay.
 # The table:
 #   input   policy drop. Loopback, replies, ICMP and ICMPv6 (IPv6 needs neighbour discovery), DHCP, SSH on 22, and
-#           80/443 from Cloudflare only. Containers reaching the host (172.30.0.1) fall to the drop, which is what the
+#           80/443 from Cloudflare only. Not SSH from containers. Containers reaching the host (172.30.0.1) fall to the drop, which is what the
 #           app's isolation check wants. 8787 is published on 127.0.0.1 only and never opened here.
 #   forward containers may not reach link-local addresses (169.254.0.0/16: the cloud metadata service; fe80::/10) or
 #           AWS's IPv6 metadata address. DOCKER-USER blocks the same (server-setup.sh); this is the second lock.
@@ -66,19 +66,22 @@ fetch() {
 }
 
 render_nft() {
-  local v4 v6
+  # an empty list renders an empty set (web ports closed), never a syntax error
+  local v4 v6 e4='' e6=''
   v4=$(paste -sd, "$1" | sed 's/,/, /g'); v6=$(paste -sd, "$2" | sed 's/,/, /g')
+  if [ -n "$v4" ]; then e4="elements = { $v4 }"; fi
+  if [ -n "$v6" ]; then e6="elements = { $v6 }"; fi
   cat <<EOF
 table inet demo_host
 delete table inet demo_host
 table inet demo_host {
   set cloudflare4 {
     type ipv4_addr; flags interval
-${v4:+    elements = { $v4 }}
+    $e4
   }
   set cloudflare6 {
     type ipv6_addr; flags interval
-${v6:+    elements = { $v6 }}
+    $e6
   }
   chain input {
     type filter hook input priority filter; policy drop;
@@ -89,6 +92,8 @@ ${v6:+    elements = { $v6 }}
     meta l4proto icmp accept
     udp sport 67 udp dport 68 accept
     ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept
+    iifname "docker0" tcp dport 22 drop
+    iifname "br-*" tcp dport 22 drop
     tcp dport 22 accept
     tcp dport { 80, 443 } ip saddr @cloudflare4 accept
     tcp dport { 80, 443 } ip6 saddr @cloudflare6 accept
@@ -151,7 +156,8 @@ if [ -d "$(dirname "$CADDY_SNIPPET")" ] && command -v caddy >/dev/null; then
   install -m 0644 "$TMP/trusted.caddy" "$CADDY_SNIPPET"
   if [ -f "$CADDYFILE" ] && ! caddy validate --config "$CADDYFILE" --adapter caddyfile >/dev/null 2>&1; then
     if [ -f "$TMP/previous.caddy" ]; then install -m 0644 "$TMP/previous.caddy" "$CADDY_SNIPPET"; fi
-    die "Caddy rejected the new trusted list (caddy validate --config $CADDYFILE); the previous one is back"
+    echo "cf-refresh: the firewall has the new ranges, but Caddy rejected the new trusted list (caddy validate --config $CADDYFILE); Caddy keeps the previous one" >&2
+    exit 1
   fi
   if systemctl is-active --quiet caddy 2>/dev/null; then systemctl reload caddy && say "Caddy reloaded with the new trusted list"; fi
 fi

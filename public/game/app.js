@@ -32,6 +32,102 @@ const short = a => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
 const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago` }
 const get = path => fetch(path, { headers: { accept: 'application/json' } }).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
 
+const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+// The dot field behind the hero, after the site's (apps/site/dots.js): dots on one square grid, thinned by an ordered
+// dither, cleared under the text. Drawn once per layout; alive only while on screen and motion is allowed: a few dots
+// brighten now and then, and a verdict that lands while the page is open sends a ring of its colour through the grid.
+const field = (() => {
+  const cv = $('field'), g = cv.getContext?.('2d')
+  if (!g) return { ring() {} }
+  const hero = cv.parentElement
+  const TONE = ['#262F37', '#36424D', '#4F5B67'], UP = ['#4F5B67', '#6E7883', '#9AA2AC']
+  const SHADES = { block: ['#CE585B', '#B95159', '#A74954', '#C9504E'], allow: ['#5AA66C', '#509566', '#528658', '#57A05B'] }
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+  const hash = (x, y) => { let h = Math.imul(x * 374761393 + y * 668265263, 1274126177); h ^= h >>> 13; return ((Math.imul(h, 1103515245) >>> 0) % 10007) / 10007 }
+  let cell = 14, ds = 5, dpr = 1, dots = [], lit = new Map(), visible = false, ringAt = null
+  const motion = () => !still() && visible && !document.hidden
+
+  function build() {
+    const w = hero.clientWidth, h = hero.clientHeight
+    if (!w || !h) return
+    dpr = Math.min(2, devicePixelRatio || 1); cell = w < 600 ? 12 : 14; ds = Math.max(2, Math.round(cell * 0.36))
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr)
+    const cols = Math.ceil(w / cell), rows = Math.ceil(h / cell), box = hero.getBoundingClientRect()
+    // under the text: whole cells cleared, plus a cell of margin
+    const zones = [...hero.querySelectorAll('[data-clear]')].map(e => {
+      const r = e.getBoundingClientRect()
+      return [Math.floor((r.left - box.left) / cell) - 1, Math.ceil((r.right - box.left) / cell) + 1, Math.floor((r.top - box.top) / cell) - 1, Math.ceil((r.bottom - box.top) / cell) + 1]
+    })
+    const blobs = Array.from({ length: Math.max(5, Math.round(cols * rows / 420)) }, (_, i) => ({
+      x: hash(i, 1) * cols, y: hash(i, 2) * rows, sx: 3 + hash(i, 3) * 12, sy: 2.5 + hash(i, 4) * 7, a: 0.45 + hash(i, 5) * 0.7, sq: hash(i, 6) < 0.55,
+    }))
+    dots = []
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      if (zones.some(z => x >= z[0] && x < z[1] && y >= z[2] && y < z[3])) continue
+      let v = (hash(x, y) - 0.5) * 0.4
+      for (const b of blobs) {
+        const dx = Math.abs(x - b.x) / b.sx, dy = Math.abs(y - b.y) / b.sy, d = b.sq ? dx ** 4 + dy ** 4 : dx * dx + dy * dy
+        if (d < 9) v += b.a * Math.exp(-d)
+      }
+      if (v > (BAYER[((y & 3) << 2) + (x & 3)] + 0.5) / 16) dots.push({ x, y, t: v > 1.1 ? 2 : v > 0.42 ? 1 : 0 })
+    }
+    lit.clear(); draw()
+  }
+  const px = c => Math.round((c * cell + (cell - ds) / 2) * dpr)
+  function dot(d, color) { g.fillStyle = color; g.fillRect(px(d.x), px(d.y), Math.round(ds * dpr), Math.round(ds * dpr)) }
+  function draw(now = 0) {
+    g.clearRect(0, 0, cv.width, cv.height)
+    let ox = 0, oy = 0, r = -1, kind = null
+    if (ringAt) {
+      const k = (now - ringAt.t) / 1600
+      if (k >= 1) ringAt = null
+      else { ({ x: ox, y: oy, kind } = ringAt); r = k * ringAt.max }
+    }
+    for (const d of dots) {
+      if (r >= 0) {
+        const off = Math.abs(Math.hypot(d.x - ox, d.y - oy) - r)
+        if (off < 2.2) { const s = SHADES[kind]; dot(d, s[(d.x * 3 + d.y * 5) % 4]); continue }
+      }
+      dot(d, lit.has(d) ? UP[d.t] : TONE[d.t])
+    }
+  }
+  function ringFrame(t) { draw(t); if (ringAt) requestAnimationFrame(ringFrame) }
+
+  // twinkle: a handful of dots one tone brighter, each for under a second
+  let twinkle = 0
+  const twinkleTimer = () => {
+    if (motion() && !twinkle) twinkle = setInterval(sparkle, 180)
+    else if (!motion() && twinkle) { clearInterval(twinkle); twinkle = 0 }
+  }
+  function sparkle() {
+    if (ringAt || !dots.length) return
+    const now = performance.now()
+    for (const [d, until] of lit) if (until < now) { lit.delete(d); g.clearRect(px(d.x) - 1, px(d.y) - 1, Math.round(ds * dpr) + 2, Math.round(ds * dpr) + 2); dot(d, TONE[d.t]) }
+    for (let i = 0; i < 2; i++) { const d = dots[Math.floor(Math.random() * dots.length)]; lit.set(d, now + 500 + Math.random() * 700); dot(d, UP[d.t]) }
+  }
+
+  let queued = false
+  const rebuild = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; build() }) } }
+  new ResizeObserver(rebuild).observe(hero)
+  for (const e of hero.querySelectorAll('[data-clear]')) new ResizeObserver(rebuild).observe(e)
+  document.fonts?.ready.then(rebuild)
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; twinkleTimer() }).observe(hero)
+  document.addEventListener('visibilitychange', twinkleTimer)
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', twinkleTimer)
+
+  return {
+    ring(kind) {
+      if (!kind || !SHADES[kind] || !motion() || !dots.length) return
+      const pot = document.querySelector('.pot').getBoundingClientRect(), box = hero.getBoundingClientRect()
+      const x = (pot.left + pot.width / 2 - box.left) / cell, y = (pot.top + pot.height / 2 - box.top) / cell
+      const max = Math.hypot(Math.max(x, hero.clientWidth / cell - x), Math.max(y, hero.clientHeight / cell - y))
+      const start = !ringAt
+      ringAt = { x, y, kind, max, t: performance.now() }
+      if (start) requestAnimationFrame(ringFrame)
+    },
+  }
+})()
+
 // a line like "Sayso: reason", the label in its own span; both parts as text
 function labelled(el, label, text) {
   el.replaceChildren()
@@ -43,7 +139,7 @@ function labelled(el, label, text) {
 function render(a) {
   const li = shown.get(a.id) ?? $('row').content.firstElementChild.cloneNode(true)
   let tone
-  li.querySelector('.who').textContent = a.source === 'vendor' ? `vendor · ${a.handle}` : `@${a.handle}`
+  li.querySelector('.who').textContent = a.source === 'vendor' ? `${a.handle}, our vendor` : `@${a.handle}`
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.body').textContent = a.body
@@ -89,14 +185,16 @@ async function loadPot() {
   const bal = $('balance')
   bal.textContent = p.balance == null ? '…' : amountText(p.balance, p.unit); bal.title = p.balance == null ? '' : `${p.balance} ${p.unit}`
   $('unit').textContent = p.unit
-  for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'money'
-  $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`; $('network').textContent = p.network === 'base' ? 'Base' : 'Base Sepolia (test money)'
+  for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'funds'
+  $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`
+  $('network').textContent = p.network === 'base' ? `Real ${p.unit} on Base` : `Test ${p.unit} on Base Sepolia, for now`
   setStatus(p.paused ? 'paused' : 'live')
   const note = $('pause-note')
   note.hidden = !p.paused
   note.textContent = p.budgetPaused ? 'Paused for budget: the agent has used its model budget for today. It is back after midnight UTC.' : p.paused ? 'The game is paused for now.' : ''
   showSource(p.source)
-  $('s-attempts').textContent = p.stats.attempts; $('s-blocked').textContent = p.stats.blocked; $('s-wins').textContent = p.stats.wins; $('s-queued').textContent = p.queued
+  ledger(p.stats)
+  $('s-queued').textContent = p.queued
   $('send').disabled = !!p.paused
   const v = $('vendors')
   if (!v.childElementCount) for (const x of p.vendors) {
@@ -106,6 +204,31 @@ async function loadPot() {
   }
 }
 
+// every player's try as one cell, grouped by what happened; past CELLS_MAX tries a cell stands for several
+const CELLS_MAX = 160
+let ledgerKey = ''
+function ledger(s) {
+  // pending tries (in line or being thought about) have no outcome yet; the rest made no payment at all (ignored,
+  // nothing to pay, no answer, not sent or paused)
+  const pending = s.pending ?? 0, vendorPaid = Math.max(0, s.paid - s.wins), other = Math.max(0, s.attempts - s.blocked - s.paid - pending)
+  $('s-attempts').textContent = s.attempts; $('s-blocked').textContent = s.blocked; $('s-paid').textContent = vendorPaid
+  $('s-other').textContent = other; $('s-wins').textContent = s.wins
+  const key = [s.attempts, s.blocked, s.paid, s.wins, pending].join()
+  if (key === ledgerKey) return
+  ledgerKey = key
+  const per = Math.max(1, Math.ceil(s.attempts / CELLS_MAX)), n = x => (x > 0 ? Math.max(1, Math.round(x / per)) : 0)
+  const cells = []
+  for (const [count, cls] of [[s.wins, 'win'], [s.blocked, 'block'], [vendorPaid, 'allow'], [other, 'quiet'], [pending, 'wait']]) {
+    for (let i = n(count); i > 0; i--) { const c = document.createElement('i'); c.className = cls; cells.push(c) }
+  }
+  const box = $('cells')
+  box.className = `cells${cells.length > 60 ? ' many' : cells.length > 24 ? ' mid' : ''}`
+  box.replaceChildren(...cells)
+  box.setAttribute('aria-label', s.attempts
+    ? `${s.attempts} tries: ${s.blocked} stopped by Sayso, ${vendorPaid} paid a real vendor, ${other} with no payment, ${s.wins} broke the guard${pending ? `, ${pending} waiting` : ''}${per > 1 ? `. Each square is about ${per} tries` : ''}`
+    : 'No tries yet')
+}
+
 // the link appears only for an https URL the server sends
 function showSource(url) {
   const ok = typeof url === 'string' && url.startsWith('https://')
@@ -113,25 +236,47 @@ function showSource(url) {
   $('code-link').hidden = !ok; $('foot-code').hidden = !ok
 }
 
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
+
 async function loadRules() {
   const r = await get('/api/rules')
   const amt = x => `${x} ${r.unit}`
   const v = $('g-vendors'); v.replaceChildren()
   for (const x of r.vendors) {
-    const li = document.createElement('li'), n = document.createElement('span'), ad = document.createElement('code')
-    n.textContent = x.name; ad.textContent = short(x.address); ad.title = x.address
-    li.append(n, ' ', ad); v.append(li)
+    const li = el('li'), ad = el('code', '', short(x.address)); ad.title = x.address
+    li.append(el('i', 'mk allow'), el('span', 'p-name', x.name), ad); v.append(li)
   }
+  const rest = el('li', 'else'); rest.append(el('i', 'mk block'), el('span', 'p-name', 'Anyone else'), el('b', '', 'Blocked')); v.append(rest)
   $('g-per').textContent = amt(r.perPayment); $('g-day').textContent = amt(r.daily); $('g-week').textContent = amt(r.weekly)
-  $('g-actions').textContent = r.actions.length === 1 && r.actions[0] === 'transfer' ? `Plain ${r.unit} transfers to these payees only. No trades, contract calls, approvals or signed messages.` : r.actions.join(', ')
-  $('g-strict').textContent = r.strictness
-  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}, ${r.sdk.mode} mode: nothing is signed without Sayso's allow`
+  // each cap drawn as payments at the per-payment cap: one square each
+  const per = Number(r.perPayment)
+  for (const [id, x] of [['g-per-bar', r.perPayment], ['g-day-bar', r.daily], ['g-week-bar', r.weekly]]) {
+    const n = per > 0 ? Math.min(60, Math.round(Number(x) / per)) : 0
+    $(id).replaceChildren(...Array.from({ length: Number.isFinite(n) ? n : 0 }, () => el('i')))
+  }
+  const acts = $('g-actions'); acts.replaceChildren()
+  if (r.actions.length === 1 && r.actions[0] === 'transfer') {
+    const yes = el('li', 'yes'); yes.append(el('i', 'mk allow'), el('span', '', `Plain ${r.unit} transfers to these payees`)); acts.append(yes)
+    for (const t of ['Token trades', 'Contract calls', 'Spending approvals', 'Signed messages']) {
+      const li = el('li', 'no'); li.append(el('i', 'mk block'), el('span', '', t)); acts.append(li)
+    }
+  } else for (const a of r.actions) acts.append(el('li', 'yes', a))
+  const st = $('g-strict')
+  for (const s of st.children) s.classList.toggle('on', s.dataset.v === r.strictness)
+  st.setAttribute('role', 'img'); st.setAttribute('aria-label', `Strictness: ${r.strictness}`)
+  // the enforce claims follow what the rules say; any other mode shows as neutral
+  const enforce = r.sdk.mode === 'enforce'
+  $('g-mode').textContent = enforce ? 'Enforce mode on' : `${r.sdk.mode} mode`
+  $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}${enforce ? ": nothing is signed without Sayso's allow" : ": Sayso's verdicts are not enforced"}`
+  $('g-mode-mk').className = `mk${enforce ? ' allow' : ''}`
+  const en = $('g-enforce'); en.className = `status${enforce ? ' live' : ''}`; en.querySelector('.status-t').textContent = enforce ? 'Enforcing' : 'Not enforcing'
+  const w = $('fl-wallet'); w.textContent = enforce ? 'signs only if Sayso says allow' : "signs without waiting for Sayso's allow"; w.hidden = false
   $('g-server-row').hidden = !r.checkServer
   if (r.checkServer) $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
-  $('g-signed').textContent = r.signedVerdicts ? 'Signed by Sayso, every one; the wallet checks the signature' : 'unsigned'
+  $('g-signed').textContent = r.signedVerdicts ? 'Every one signed by Sayso. The wallet checks the signature.' : 'Unsigned'
   $('g-source').textContent = r.source === 'signed rules'
-    ? `Signed rules, word for word${r.signedAt ? ` (signed ${r.signedAt.slice(0, 10)})` : ''}`
-    : 'Published rules, word for word (not read from the signed file)'
+    ? `The signed rules, word for word${r.signedAt ? ` (signed ${r.signedAt.slice(0, 10)})` : ''}`
+    : 'The published rules, word for word'
   $('g-text').textContent = r.text
 }
 
@@ -155,18 +300,19 @@ function trick(a) {
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.t-body').textContent = a.excerpt
-  li.querySelector('.what').textContent = a.toAddr ? `tried ${a.amount} ${unit} to ${short(a.toAddr)}` : ''
+  li.querySelector('.what').textContent = a.toAddr ? `${a.amount} ${unit} to ${short(a.toAddr)}` : ''
   li.querySelector('.rule').textContent = Object.hasOwn(RULE, a.rule) ? RULE[a.rule] : ''
-  labelled(li.querySelector('.reason'), 'Sayso', a.reason ?? '')
+  li.querySelector('.reason').textContent = a.reason ?? ''
   return li
 }
 
-const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 function carButtons() {
   const l = $('t-list'), end = l.scrollWidth - l.clientWidth - 2
-  $('t-prev').disabled = l.scrollLeft <= 2; $('t-next').disabled = l.scrollLeft >= end
+  // aria-disabled, not disabled, so a button at the end keeps keyboard focus
+  $('t-prev').setAttribute('aria-disabled', String(l.scrollLeft <= 2)); $('t-next').setAttribute('aria-disabled', String(l.scrollLeft >= end))
 }
 function carStep(dir) {
+  if ($(dir < 0 ? 't-prev' : 't-next').getAttribute('aria-disabled') === 'true') return
   const l = $('t-list'), card = l.firstElementChild
   if (!card) return
   const gap = parseFloat(getComputedStyle(l).columnGap) || 0
@@ -204,8 +350,10 @@ async function loadFeed() {
   let added = 0
   dropHidden(items)
   for (const a of [...items].reverse()) {
-    const fresh = !shown.has(a.id)
+    const fresh = !shown.has(a.id), was = waiting.has(a.id)
     const li = render(a)
+    // a verdict that lands while the page is open sends a ring through the dot field
+    if (a.status === 'done' && (was || (fresh && !first))) field.ring(a.win || a.outcome === 'blocked' ? 'block' : a.outcome === 'paid' ? 'allow' : null)
     if (fresh && a.id > newest) { list.prepend(li); if (!first) added++ }
     else if (fresh) list.append(li)
     newest = Math.max(newest, a.id); oldest = oldest === null ? a.id : Math.min(oldest, a.id)

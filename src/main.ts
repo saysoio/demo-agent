@@ -6,6 +6,7 @@ import { toAccount } from 'viem/accounts'
 import { Agent } from './agent.ts'
 import { FakeBrain, HaikuBrain, systemPrompt } from './brain.ts'
 import { decimalsFor, loadConfig, type LlmSettings } from './config.ts'
+import { directory } from './directory.ts'
 import { isolationProblems, processProbe } from './isolation.ts'
 import { proxyTrustProblem } from './guard/index.ts'
 import { loadRules } from './rules.ts'
@@ -47,7 +48,7 @@ async function main() {
     payer = new SaysoPayer(cfg, toAccount(acct as any))
   }
   const onUsage = (u: Usage) => store.addModelCall(cfg.llm.model, u, callCost(u, cfg.spend))
-  const brain = cfg.fake ? new FakeBrain(cfg.vendors) : await HaikuBrain.create({ apiKey: cfg.secrets.anthropic, llm: cfg.llm, onUsage, system: systemPrompt({ agentName: cfg.agentName, asset: cfg.asset, vendors: cfg.vendors }) })
+  const brain = cfg.fake ? new FakeBrain(cfg.vendors) : await HaikuBrain.create({ apiKey: cfg.secrets.anthropic, llm: cfg.llm, onUsage, system: systemPrompt({ agentName: cfg.agentName, asset: cfg.asset, directory: directory(cfg.vendors) }) })
   const budget = cfg.spend.budgetUsd === null ? undefined : { usd: cfg.spend.budgetUsd, spentToday: () => store.spend(dayStart(Date.now())).usd }
 
   const maxPerPayment = cfg.maxPerPayment ? parseUnits(cfg.maxPerPayment, decimals) : undefined

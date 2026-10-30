@@ -172,6 +172,10 @@ h1 { font-size: clamp(2.6rem, 1.3rem + 4.4vw, 5rem); line-height: .98; letter-sp
 .queue { font-size: 13px; color: var(--s300); }
 .queue span { font-family: var(--mono); color: var(--chalk); }
 @media (max-width: 379px) { .legend { grid-template-columns: 1fr; } }
+/* a sender posing as someone in the directory: the ask yellow, as on the pause note */
+.posing { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid var(--s600); border-left: 3px solid var(--ask); border-radius: 3px;
+  background: var(--s900); font-size: 12.5px; line-height: 1.45; color: var(--chalk); text-wrap: pretty; }
+.posing::before { content: ""; flex: none; width: 7px; height: 7px; background: var(--ask); translate: 0 -1px; }
 .pause-note { padding: 10px 12px; border: 1px solid var(--s600); border-left: 3px solid var(--ask); border-radius: 3px; font-size: 14px; color: var(--chalk); background: var(--s900); }
 
 /* the four steps a message goes through */
@@ -211,9 +215,9 @@ main > .hero + .wrap { margin-top: clamp(24px, 3vw, 40px); }
   scrollbar-width: thin; padding-bottom: 10px; }
 @media (min-width: 640px) { .car { grid-auto-columns: calc((100% - 12px) / 2); } }
 @media (min-width: 1040px) { .car { grid-auto-columns: calc((100% - 32px) / 3); gap: 16px; } }
-.trick { scroll-snap-align: start; display: grid; grid-template-rows: auto auto 1fr auto auto auto; gap: 14px; padding: 20px; background: var(--s800); border: 1px solid var(--s600); border-radius: 6px; min-width: 0; }
+.trick { scroll-snap-align: start; display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--s800); border: 1px solid var(--s600); border-radius: 6px; min-width: 0; }
 .trick .meta { padding-bottom: 12px; border-bottom: 1px solid var(--s700); }
-.t-body { color: var(--s50); font-size: 17px; line-height: 1.5; font-weight: 500; text-wrap: pretty; }
+.t-body { flex: 1 0 auto; color: var(--s50); font-size: 17px; line-height: 1.5; font-weight: 500; text-wrap: pretty; }
 .t-body::before { content: "\201C"; } .t-body::after { content: "\201D"; }
 .t-pay { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 12px; background: var(--s900); border-radius: 3px; }
 .t-k { font-size: 13px; font-weight: 600; color: var(--s300); }

@@ -136,10 +136,17 @@ function labelled(el, label, text) {
   el.append(document.createTextNode(text))
 }
 
-// who a try says it is from: the sender the player typed (there is no handle), in full on hover
+// who a try says it is from: the sender the player typed (there is no handle), in full on hover, and a warning when
+// it poses as someone in the directory. The sender is kept on the row so the warning can follow a later directory load.
 function sender(li, a) {
   const who = li.querySelector('.who')
   who.textContent = a.from || 'no sender given'; who.title = a.from ?? ''
+  li.dataset.from = a.source === 'player' ? a.from ?? '' : ''
+  posingLine(li.querySelector('.posing'), li.dataset.from)
+}
+function posingLine(p, from) {
+  const name = from && typeof Posing !== 'undefined' ? Posing.posingAs(from, people) : null
+  p.textContent = name ? Posing.warning(name) : ''; p.hidden = !name
 }
 
 function render(a) {
@@ -304,7 +311,8 @@ async function loadTricks() {
 
 function trick(a) {
   const li = $('trick').content.firstElementChild.cloneNode(true)
-  sender(li, a)
+  // a stopped trick is always a player's
+  sender(li, { ...a, source: 'player' })
   li.querySelector('.chan').textContent = CHANNEL[a.channel] ?? a.channel
   const time = li.querySelector('time'); time.dateTime = new Date(a.createdAt).toISOString(); time.textContent = ago(a.createdAt)
   li.querySelector('.t-body').textContent = a.excerpt
@@ -444,7 +452,9 @@ function senderField() {
   const ch = channelNow(), s = SENDER[ch] ?? SENDER.email
   $('from-label').querySelector('.lab-hint').textContent = s.hint
   $('from').placeholder = s.ph(people)
+  posingLine($('from-posing'), $('from').value.trim())
 }
+$('from').addEventListener('input', () => posingLine($('from-posing'), $('from').value.trim()))
 function say(text) { const l = $('dir-live'); l.textContent = ''; setTimeout(() => { l.textContent = text }, 30) }
 
 function useSender(who, ch) {
@@ -511,6 +521,8 @@ async function loadDirectory() {
     team.append(li)
   }
   senderField()
+  // rows and tricks drawn before the directory came get their warnings now
+  for (const li of document.querySelectorAll('#feed .item, #t-list .trick')) posingLine(li.querySelector('.posing'), li.dataset.from ?? '')
 }
 
 for (const r of document.querySelectorAll('input[name="channel"]')) r.addEventListener('change', () => {

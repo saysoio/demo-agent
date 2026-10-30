@@ -24,7 +24,8 @@ player ──/game/ form──▶ inbox (SQLite) ──▶ Haiku reads one item 
   post, a name in the team chat). Spoofing a vendor or a colleague is allowed; the shape is checked per channel
   (`src/guard/input.ts` `parseFrom`). There is no player handle: the feed shows the sender, the limits go by IP, and
   sayso is told the item came through the public form, claiming to be from that sender. A `handle` an old page still
-  sends is ignored.
+  sends is ignored. When the sender matches or imitates someone in the directory, the page and the feed warn that in
+  real life this would need that person's stolen account (`public/game/posing.js`, which the page and the tests share).
 - **The directory** (`src/directory.ts`, made from `DEMO_VENDORS`): each vendor's billing email, website, X handle,
   wallet and usual invoice, and three colleagues in the team chat. All made up: domains under `.example`, handles ending
   in `_demo`. The agent's prompt carries it, scheduled vendor invoices come from the vendor's billing email, and the page

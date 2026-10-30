@@ -202,6 +202,12 @@ test('the game page carries the terms footer, links the rules and privacy, and n
   assert.ok(html.includes('The transfer is yours (test ETH, no value).'))
   assert.doesNotMatch(html, /prize|bount/i)
   assert.doesNotMatch(html, /id="handle"|your handle/i)
+  // every script is named by content hash, the posing check before the page script that uses it
+  assert.match(html, /<script src="\/game\/posing\.js\?v=[0-9a-f]{10}" defer><\/script>\s*<script src="\/game\/app\.js\?v=[0-9a-f]{10}" defer>/)
+  assert.match(html, /\/game\/style\.css\?v=[0-9a-f]{10}"/)
+  const js = await fetch(url + '/game/posing.js')
+  assert.equal(js.status, 200)
+  assert.match(js.headers.get('content-type')!, /^text\/javascript/)
 })
 
 test('the rules page is served under the same policy, with the win, conduct and privacy sections', async () => {

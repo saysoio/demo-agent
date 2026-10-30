@@ -48,13 +48,13 @@ function refuseBody(res: ServerResponse, e: unknown) {
 }
 
 const pages = new Map<string, Buffer>()
-/** The page with `?v=<content hash>` on its script and stylesheet, built once: a deploy changes the address. */
+/** The page with `?v=<content hash>` on each of its scripts and its stylesheet, built once: a deploy changes the address. */
 function versionedPage(rel: string): Buffer {
   let page = pages.get(rel)
   if (!page) {
     const v = (name: string) => createHash('sha256').update(readFileSync(join(PUBLIC, 'game', name))).digest('hex').slice(0, 10)
     page = Buffer.from(readFileSync(join(PUBLIC, rel), 'utf8')
-      .replace('/game/app.js"', `/game/app.js?v=${v('app.js')}"`).replace('/game/style.css"', `/game/style.css?v=${v('style.css')}"`))
+      .replace(/"\/game\/([a-z0-9-]+\.(?:js|css))"/g, (_, name: string) => `"/game/${name}?v=${v(name)}"`))
     pages.set(rel, page)
   }
   return page

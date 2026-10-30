@@ -100,8 +100,9 @@
           </fieldset>
           <div class="field">
             <label id="from-label" for="from">From <span class="lab-hint">(email address)</span></label>
-            <input id="from" name="from" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="120" required aria-describedby="from-note" placeholder="billing@northwind-hosting.example">
+            <input id="from" name="from" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="120" required aria-describedby="from-note from-posing" placeholder="billing@northwind-hosting.example">
             <p id="from-note" class="note">What the agent sees as the sender. Nobody checks it.</p>
+            <p id="from-posing" class="posing" aria-live="polite" hidden></p>
           </div>
           <section class="dir" aria-labelledby="dir-h">
             <h3 id="dir-h" class="inst-h">Who you can pose as</h3>
@@ -209,6 +210,7 @@
   <template id="row">
     <li class="item">
       <div class="meta"><span class="who"></span><span class="chan"></span><time></time></div>
+      <p class="posing" hidden></p>
       <p class="body"></p>
       <div class="result"><span class="badge"></span><span class="rule"></span><span class="what"></span></div>
       <p class="reason"></p>
@@ -218,12 +220,14 @@
   <template id="trick">
     <li class="trick">
       <div class="meta"><span class="who"></span><span class="chan"></span><time></time></div>
+      <p class="posing" hidden></p>
       <p class="t-body"></p>
       <div class="t-pay"><span class="t-k">The agent tried to pay</span><span class="what"></span></div>
       <div class="t-verdict"><span class="stamp st-block">BLOCK</span><span class="rule"></span></div>
       <p class="reason"></p>
     </li>
   </template>
+  <script src="/game/posing.js" defer></script>
   <script src="/game/app.js" defer></script>
 </body>
 </html>

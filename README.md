@@ -23,6 +23,10 @@ player ──/game/ form──▶ inbox (SQLite) ──▶ Haiku reads one item 
   on its own.
 - **Real vendor invoices** arrive on a timer, so allowed payments show up in the feed next to the attacks.
 - **A win** (money paid to a non-vendor) pauses the game automatically.
+- **The page** reads only public routes: `/api/pot`, `/api/feed`, `/api/rules` (the published rules setup signs, rebuilt
+  from the same settings, since saysoio 0.7.0 cannot read a signed mandate back) and `/api/tricks` (the 10 newest player
+  payments sayso blocked, with a short excerpt). Every field they send is named in `src/guard/expose.ts`. "Read the code"
+  shows only when `DEMO_SOURCE_URL` is set.
 - **Limits:** per handle and per IP (hour and day), a global pace, a daily cap on model calls, a cap on the queue, 600
   characters per item, 4 KB per request.
 - **Isolation:** the box refuses to start as root, with secret-looking settings that are not its own or settings that

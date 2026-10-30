@@ -44,6 +44,31 @@
         <div><dt>Broken</dt><dd id="s-wins">0</dd></div>
         <div><dt>In line</dt><dd id="s-queued">0</dd></div>
       </dl>
+      <p id="pause-note" class="pause-note" hidden></p>
+    </section>
+
+    <section class="card guard" aria-labelledby="guard-h">
+      <div class="pot-top">
+        <h2 id="guard-h">Security layer</h2>
+        <p class="status live"><span class="dot" aria-hidden="true"></span><span>Sayso on</span></p>
+      </div>
+      <p class="guard-lede">What the agent's wallet is allowed to do, as the owner signed it with Sayso. Every payment is checked against these rules before the wallet signs, and Sayso signs every verdict.</p>
+      <dl id="guard-list" class="guard-list">
+        <div><dt>Payees</dt><dd><ul id="g-vendors" class="g-vendors"></ul></dd></div>
+        <div><dt>Per payment</dt><dd id="g-per" class="mono">…</dd></div>
+        <div><dt>Per day</dt><dd id="g-day" class="mono">…</dd></div>
+        <div><dt>Per week</dt><dd id="g-week" class="mono">…</dd></div>
+        <div><dt>Allowed</dt><dd id="g-actions">…</dd></div>
+        <div><dt>Strictness</dt><dd id="g-strict">…</dd></div>
+        <div><dt>Wallet guard</dt><dd id="g-sdk">…</dd></div>
+        <div><dt>Check server</dt><dd id="g-server" class="mono">…</dd></div>
+        <div><dt>Verdicts</dt><dd id="g-signed">…</dd></div>
+      </dl>
+      <details class="guard-text">
+        <summary><span id="g-source">Published rules</span><span class="chev" aria-hidden="true"></span></summary>
+        <p id="g-text"></p>
+      </details>
+      <a id="code-link" class="code-link" href="#" rel="noopener noreferrer" target="_blank" hidden>Read the code</a>
     </section>
 
     <section id="play" class="card play" aria-labelledby="play-h" tabindex="-1">
@@ -72,13 +97,27 @@
       </form>
     </section>
 
+    <section id="tricks" class="tricks" aria-labelledby="tricks-h" hidden>
+      <div class="feed-head">
+        <h2 id="tricks-h">Fooled the agent, stopped by Sayso</h2>
+        <div class="car-nav">
+          <button id="t-prev" class="btn btn-s car-btn" type="button" aria-controls="t-list" aria-label="Previous tricks"><span class="arr prev" aria-hidden="true"></span></button>
+          <button id="t-next" class="btn btn-s car-btn" type="button" aria-controls="t-list" aria-label="Next tricks"><span class="arr" aria-hidden="true"></span></button>
+        </div>
+      </div>
+      <ol id="t-list" class="car" tabindex="0" aria-label="Tricks the agent fell for, newest first"></ol>
+    </section>
+
     <section class="feed" aria-labelledby="feed-h">
       <div class="feed-head">
         <h2 id="feed-h">Live feed</h2>
         <p id="feed-status" class="feed-status" aria-live="polite">Loading</p>
       </div>
-      <ol id="feed" class="feed-list"></ol>
-      <button id="more" class="btn btn-s more" type="button" hidden>Older</button>
+      <ol id="feed" class="feed-list collapsed"></ol>
+      <div class="feed-foot">
+        <button id="toggle" class="btn btn-s" type="button" aria-controls="feed" aria-expanded="false" hidden>Show all</button>
+        <button id="more" class="btn btn-s" type="button" hidden>Older</button>
+      </div>
     </section>
 
     <details class="card rules">
@@ -95,7 +134,7 @@
     </details>
   </main>
 
-  <footer class="foot wrap">A live demo of Sayso.</footer>
+  <footer class="foot wrap">A live demo of Sayso.<span id="foot-code" hidden> <a id="foot-link" href="#" rel="noopener noreferrer" target="_blank">Read the code</a>.</span></footer>
 
   <template id="row">
     <li class="item">
@@ -104,6 +143,15 @@
       <div class="result"><span class="badge"></span><span class="rule"></span><span class="what"></span></div>
       <p class="reason"></p>
       <p class="thought"></p>
+    </li>
+  </template>
+  <template id="trick">
+    <li class="trick">
+      <div class="meta"><span class="who"></span><span class="chan"></span><time></time></div>
+      <p class="t-body"></p>
+      <p class="what"></p>
+      <div class="result"><span class="badge stop">stopped by Sayso</span><span class="rule"></span></div>
+      <p class="reason"></p>
     </li>
   </template>
   <script src="/game/app.js" defer></script>

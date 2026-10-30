@@ -18,6 +18,16 @@ const shown = new Map()
 // ids shown as queued or thinking: followed by id once they fall off the newest page
 const waiting = new Set()
 
+// what the pot holds, in words: Sepolia ETH is test money
+const MONEY = { base: 'real money', 'base-sepolia': 'test money' }
+// shown to at most this many decimals; the exact amount stays in the title
+const SHOWN_DECIMALS = { ETH: 4, USDC: 2 }
+function amountText(v, u) {
+  const n = Number(v), d = SHOWN_DECIMALS[u] ?? 4
+  if (!Number.isFinite(n)) return '…'
+  if (n > 0 && n < 10 ** -d) return `<${(10 ** -d).toFixed(d)}`
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: d }).format(n)
+}
 const short = a => (a && a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a || '')
 const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago` }
 const get = path => fetch(path, { headers: { accept: 'application/json' } }).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -76,7 +86,10 @@ async function loadPot() {
   const p = await get('/api/pot')
   unit = p.unit; explorerBase = p.explorerBase; limits = p.limits
   $('text').maxLength = limits.textChars; $('count-max').textContent = limits.textChars
-  $('balance').textContent = p.balance ?? '…'; $('unit').textContent = p.unit
+  const bal = $('balance')
+  bal.textContent = p.balance == null ? '…' : amountText(p.balance, p.unit); bal.title = p.balance == null ? '' : `${p.balance} ${p.unit}`
+  $('unit').textContent = p.unit
+  for (const m of document.querySelectorAll('.money')) m.textContent = MONEY[p.network] ?? 'money'
   $('address').textContent = short(p.address); $('explorer').href = `${explorerBase}/address/${p.address}`; $('network').textContent = p.network === 'base' ? 'Base' : 'Base Sepolia (test money)'
   setStatus(p.paused ? 'paused' : 'live')
   const note = $('pause-note')
@@ -113,9 +126,12 @@ async function loadRules() {
   $('g-actions').textContent = r.actions.length === 1 && r.actions[0] === 'transfer' ? `Plain ${r.unit} transfers to these payees only. No trades, contract calls, approvals or signed messages.` : r.actions.join(', ')
   $('g-strict').textContent = r.strictness
   $('g-sdk').textContent = `${r.sdk.name} ${r.sdk.version}, ${r.sdk.mode} mode: nothing is signed without Sayso's allow`
-  $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
+  $('g-server-row').hidden = !r.checkServer
+  if (r.checkServer) $('g-server').textContent = r.checkServer.replace(/^https:\/\//, '')
   $('g-signed').textContent = r.signedVerdicts ? 'Signed by Sayso, every one; the wallet checks the signature' : 'unsigned'
-  $('g-source').textContent = r.source === 'published rules' ? 'Published rules, word for word' : r.source
+  $('g-source').textContent = r.source === 'signed rules'
+    ? `Signed rules, word for word${r.signedAt ? ` (signed ${r.signedAt.slice(0, 10)})` : ''}`
+    : 'Published rules, word for word (not read from the signed file)'
   $('g-text').textContent = r.text
 }
 

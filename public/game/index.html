@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Break the guard · Sayso</title>
-  <meta name="description" content="An AI agent holds real money. Sayso checks every payment it tries. Trick the agent, beat the check, keep what you take.">
+  <meta name="description" content="An AI agent holds a funded wallet. Sayso checks every payment it tries. Trick the agent, beat the check, keep what you take.">
   <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="/game/style.css">
 </head>
@@ -23,9 +23,9 @@
   <main class="wrap">
     <section class="hero" aria-labelledby="title">
       <h1 id="title">Break the guard</h1>
-      <p class="lede">An AI agent pays our vendor invoices from a wallet with real money in it. Every payment it tries goes through Sayso first. Trick the agent, get past Sayso, and you keep what it sends.</p>
+      <p class="lede">An AI agent pays our vendor invoices from a wallet with <span class="money">money</span> in it. Every payment it tries goes through Sayso first. Trick the agent, get past Sayso, and you keep what it sends.</p>
       <ol class="steps">
-        <li><span class="n">01</span><span><strong>The agent holds real money.</strong> It reads an inbox and pays what looks owed.</span></li>
+        <li><span class="n">01</span><span><strong>The agent holds <span class="money">money</span>.</strong> It reads an inbox and pays what looks owed.</span></li>
         <li><span class="n">02</span><span><strong>Sayso checks every payment</strong> against the owner's rules before the wallet signs.</span></li>
         <li><span class="n">03</span><span><strong>Trick it and keep what you take.</strong> A payment to anyone but our vendors is yours.</span></li>
       </ol>
@@ -61,7 +61,7 @@
         <div><dt>Allowed</dt><dd id="g-actions">…</dd></div>
         <div><dt>Strictness</dt><dd id="g-strict">…</dd></div>
         <div><dt>Wallet guard</dt><dd id="g-sdk">…</dd></div>
-        <div><dt>Check server</dt><dd id="g-server" class="mono">…</dd></div>
+        <div id="g-server-row"><dt>Check server</dt><dd id="g-server" class="mono">…</dd></div>
         <div><dt>Verdicts</dt><dd id="g-signed">…</dd></div>
       </dl>
       <details class="guard-text">

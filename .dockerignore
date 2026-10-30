@@ -16,3 +16,4 @@ Dockerfile
 .dockerignore
 compose.yaml
 tsconfig.json
+outline.env

@@ -36,6 +36,27 @@ services:
         max-size: 10m
         max-file: "3"
 
+  # Optional, for an Outline (Shadowsocks) access key: `docker compose --profile outline up -d --build`, with
+  # DEMO_LLM_PROXY=http://outline:1080 in .env and the key in outline.env. Only the model's calls use it. The key stays
+  # in this container; the port is not published, so only services on this compose network reach it.
+  outline:
+    profiles: [outline]
+    image: ghcr.io/shadowsocks/sslocal-rust:v1.25.0
+    env_file: outline.env
+    command: ["sh", "-c", "exec sslocal --log-without-time --server-url \"$$OUTLINE_KEY\" --local-addr 0.0.0.0:1080 --protocol http"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    pids_limit: 32
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
 volumes:
   demo-data:
 

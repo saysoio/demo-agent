@@ -7,3 +7,4 @@ data/
 *.pem
 *.db
 *.db-*
+outline.env

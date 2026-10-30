@@ -101,6 +101,19 @@ model's traffic takes this route; sayso, the RPC node and Coinbase CDP stay dire
   `OWN_SECRETS`) and never logged; the start line says only "model via proxy" or "model via gateway".
 - `DEMO_LLM_MODEL`: the model id, `claude-haiku-5-5` by default.
 
+**Outline key.** An Outline access key (`ss://…`) is a Shadowsocks key, which Node cannot use directly. Compose has an
+optional `outline` service (`sslocal` from shadowsocks-rust) that turns it into an HTTP proxy on the compose network:
+
+```bash
+printf 'OUTLINE_KEY=%s\n' 'ss://…' > outline.env   # never commit it (ignored by git and the image)
+chmod 600 outline.env
+# in .env: DEMO_LLM_PROXY=http://outline:1080
+docker compose --profile outline up -d --build
+```
+
+The key stays in that container; its port is not published. A dynamic key (`ssconf://…`) must first be resolved to the
+`ss://` key it points to.
+
 The box refuses to start with `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` (any case), `NODE_USE_ENV_PROXY` or
 `ANTHROPIC_BASE_URL` set: they would send every call through a proxy, or the model's calls elsewhere. The client always
 gets its base URL from the box (`api.anthropic.com` unless `DEMO_LLM_BASE_URL` is set).

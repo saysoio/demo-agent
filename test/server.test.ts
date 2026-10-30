@@ -6,6 +6,7 @@ import { Agent } from '../src/agent.ts'
 import { FakeBrain } from '../src/brain.ts'
 import { loadConfig } from '../src/config.ts'
 import { makeServer } from '../src/server.ts'
+import { BUDGET_PAUSE } from '../src/spend.ts'
 import { Store } from '../src/store.ts'
 import { FakePayer } from '../src/wallet.ts'
 
@@ -116,6 +117,33 @@ test('admin calls need the token; pause stops submissions', async () => {
   const pot = await (await fetch(url + '/api/pot')).json() as any
   assert.equal(pot.paused, 'test')
   await post('/api/admin/pause', { paused: false }, { authorization: `Bearer ${ADMIN}` })
+})
+
+test('spend is for the operator: the admin gate guards it and the public pot never shows it', async () => {
+  store.addModelCall('claude-haiku-5-5', { input: 1000, output: 100, cacheWrite: 0, cacheRead: 0 }, 0.00015)
+  const get = (headers: Record<string, string> = {}) => fetch(url + '/api/admin/spend', { headers })
+  assert.equal((await get()).status, 401)
+  assert.equal((await get({ authorization: `Bearer ${ADMIN}`, 'x-forwarded-for': '1.2.3.4' })).status, 404)
+  const r = await get({ authorization: `Bearer ${ADMIN}` })
+  assert.equal(r.status, 200)
+  const s = await r.json() as any
+  assert.equal(s.today.calls, 1)
+  assert.equal(s.allTime.usd, 0.00015)
+  assert.deepEqual(s.prices, { inPerMtok: 0.1, outPerMtok: 0.5 })
+  assert.equal(s.budgetUsd, null)
+  assert.equal(s.budgetPer, 'UTC day')
+  const pot = JSON.stringify(await (await fetch(url + '/api/pot')).json())
+  assert.doesNotMatch(pot, /usd|spend|tokens/i)
+  assert.equal((await fetch(url + '/api/admin/other', { headers: { authorization: `Bearer ${ADMIN}` } })).status, 404)
+})
+
+test('a budget pause shows on the pot as paused for budget', async () => {
+  agent.pause(BUDGET_PAUSE)
+  const pot = await (await fetch(url + '/api/pot')).json() as any
+  assert.equal(pot.budgetPaused, true)
+  assert.ok(pot.paused)
+  agent.resume()
+  assert.equal(((await (await fetch(url + '/api/pot')).json()) as any).budgetPaused, false)
 })
 
 test('the page is served with a strict policy, and nothing outside public/game is', async () => {

@@ -12,6 +12,7 @@ import {
   parseFeedQuery, parseSubmit, publicAttempt, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath, vendorHandles,
 } from './guard/index.ts'
 import { rulesView } from './rules.ts'
+import { dayName, dayStart } from './spend.ts'
 import type { Store } from './store.ts'
 import type { Payer } from './wallet.ts'
 
@@ -52,15 +53,28 @@ export function makeServer(d: ServerDeps): Server {
   async function potView() {
     return publicPot({
       address: payer.address, balance: await balance.get(), unit: unitName(cfg.asset), network: cfg.network, chainId: cfg.chainId,
-      explorerBase: cfg.explorer, paused: agent.paused(), queued: store.queued(), stats: store.stats(),
+      explorerBase: cfg.explorer, paused: agent.paused(), budgetPaused: agent.pausedForBudget(), queued: store.queued(), stats: store.stats(),
       vendors: cfg.vendors.map(v => ({ name: v.name, address: v.address })), limits: { textChars: MAX_TEXT_CHARS, feedPage: FEED_PAGE }, source: cfg.sourceUrl,
     })
+  }
+
+  // for the operator only: never on the public page
+  function spendView() {
+    const now = (d.now ?? Date.now)()
+    return { day: dayName(now), today: store.spend(dayStart(now)), allTime: store.spend(), budgetUsd: cfg.spend.budgetUsd, budgetPer: 'UTC day',
+      prices: { inPerMtok: cfg.spend.inPerMtok, outPerMtok: cfg.spend.outPerMtok }, paused: agent.pausedForBudget() }
   }
 
   async function route(req: IncomingMessage, res: ServerResponse) {
     const url = new URL(req.url ?? '/', 'http://box')
     const ip = clientIp(req, cfg.trustLocalHeader, cfg.trustedProxies)
     const path = url.pathname
+
+    if (req.method === 'GET' && path.startsWith('/api/admin/')) {
+      const no = admin.check(req); if (no) return send(res, no.status, { error: no.error })
+      if (path === '/api/admin/spend') return send(res, 200, spendView())
+      return send(res, 404, { error: 'not found' })
+    }
 
     if (req.method === 'GET' && path.startsWith('/api/')) {
       if (!reads.take(ipKey(ip))) return send(res, 429, { error: 'slow down' })

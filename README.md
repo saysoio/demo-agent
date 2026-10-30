@@ -58,7 +58,15 @@ Admin (token in `DEMO_ADMIN_TOKEN`):
 ```bash
 curl -X POST -H "authorization: Bearer $DEMO_ADMIN_TOKEN" -H 'content-type: application/json' -d '{"paused":true,"why":"maintenance"}' http://127.0.0.1:8787/api/admin/pause
 curl -X POST -H "authorization: Bearer $DEMO_ADMIN_TOKEN" -H 'content-type: application/json' -d '{"id":42}' http://127.0.0.1:8787/api/admin/hide
+curl -H "authorization: Bearer $DEMO_ADMIN_TOKEN" http://127.0.0.1:8787/api/admin/spend
 ```
+
+Model spend: every Haiku call's tokens (input, output, cache write and read) are kept in the `model_calls` table, priced
+at `DEMO_LLM_PRICE_IN_PER_MTOK` / `DEMO_LLM_PRICE_OUT_PER_MTOK` when made. `/api/admin/spend` gives today's (UTC) and
+all-time totals and the call count, and the log gets one `model spend <day>` line when a UTC day ends. With
+`DEMO_LLM_BUDGET_USD` set, reaching it in a UTC day pauses the game (the page shows it as paused for budget; at most the
+call that crosses it is made) and the next UTC day lifts that pause alone; an admin or safety pause stays. Spend is
+never on the public page.
 
 ## Docker
 

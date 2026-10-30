@@ -329,6 +329,19 @@ textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 
 .foot { margin-top: clamp(64px, 8vw, 112px); padding-block: 28px 44px; border-top: 1px solid var(--s800); font-size: 14px; color: var(--s300); }
 .foot a { color: var(--chalk); }
+.foot-in { display: grid; gap: 12px; }
+.foot-terms { max-width: 52rem; color: var(--s200); text-wrap: pretty; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 4px 20px; font-weight: 600; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 32px; }
+
+/* the rules page: the same type and marks, one readable column */
+a.brand { text-decoration: none; }
+.prose { display: grid; gap: 16px; max-width: calc(46rem + 2 * var(--gut)); padding-block: clamp(32px, 5vw, 64px) 0; }
+.prose h2 { margin-top: 24px; }
+.prose > p { color: var(--s200); text-wrap: pretty; }
+.prose-lede { font-size: clamp(1.0625rem, 1rem + .35vw, 1.25rem); }
+.prose a { color: var(--chalk); }
+.prose b { color: var(--s50); font-weight: 650; }
 
 @keyframes blink { 50% { opacity: .2; } }
 @media (prefers-reduced-motion: reduce) {

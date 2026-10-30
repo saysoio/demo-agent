@@ -146,7 +146,7 @@ export function makeServer(d: ServerDeps): Server {
       const file = staticPath(path)
       if (file) {
         try {
-          const body = file.rel.endsWith('index.html') ? versionedPage(file.rel) : readFileSync(join(PUBLIC, file.rel))
+          const body = file.rel.endsWith('.html') ? versionedPage(file.rel) : readFileSync(join(PUBLIC, file.rel))
           // the page is no-cache and names its script and stylesheet by content hash, because Cloudflare caches .js
           // and .css for hours whatever the origin says; the fonts never change
           const cache = file.rel.endsWith('.woff2') ? 'public, max-age=604800, immutable' : 'no-cache'

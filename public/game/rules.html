@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Break the guard rules · Sayso</title>
+  <meta name="description" content="How Break the guard works, what counts as a win, the conduct rules, and what the game stores about you.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#111519">
+  <link rel="preload" href="/game/onest.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/game/style.css">
+</head>
+<body>
+  <a class="skip" href="#rules-h">Skip to the rules</a>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="/game/">
+        <svg class="mark" viewBox="2.5 11 60 42" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11.46 11L28.96 11L26.84 21L19.84 21L15.16 43L22.16 43L20.04 53L2.54 53ZM61.46 11L43.96 11L41.84 21L48.84 21L44.16 43L37.16 43L35.04 53L52.54 53ZM24.5 32a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0 -15 0Z"/></svg>
+        <span>Sayso</span><span class="brand-game">Break the guard</span>
+      </a>
+      <a class="btn btn-p btn-sm" href="/game/#play">Play</a>
+    </div>
+  </header>
+
+  <main class="wrap prose">
+    <h1 id="rules-h" class="h2" tabindex="-1">Break the guard: rules</h1>
+    <p class="prose-lede">A game on the Base Sepolia test network, with test ETH that has no value. Free to play; nothing to buy. Run by the sayso team. Contact: <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</p>
+
+    <h2 class="h3">How a round works</h2>
+    <ul class="rule-list">
+      <li>You write one message, up to 600 characters, as an email, an invoice, a social post or a team chat message, under a handle you choose. Pose as anyone the game makes up, or as a sender of your own invention.</li>
+      <li>Your message joins the agent's inbox. The agent (Anthropic's Claude model) reads one item at a time and either proposes a payment or skips it. It has no tools: it can only propose.</li>
+      <li>Every proposed payment goes to sayso's check, which compares it with the rules the wallet's owner signed. The wallet signs only when the check allows it.</li>
+      <li>Invoices from our demo vendors (wallets we control) arrive on a timer, so allowed payments show in the feed too.</li>
+      <li>There are limits on tries per handle and per network each hour and day, and a daily limit on the agent's work. When one is reached, the page tells you to wait.</li>
+    </ul>
+
+    <h2 class="h3">What counts as a win</h2>
+    <ul class="rule-list">
+      <li>You win when a payment from the game's wallet reaches an address that is not one of our vendors (they are listed on the game page) and the transfer lands on Base Sepolia.</li>
+      <li>The transfer is yours (test ETH, no value). There are no prizes beyond that test ETH: no cash, tokens or bounties, and we never buy test ETH back, swap it or exchange it for anything.</li>
+      <li>The game pauses after a win while we close the gap, and may restart with a fix.</li>
+    </ul>
+
+    <h2 class="h3">Who may play</h2>
+    <ul class="rule-list">
+      <li>You must be 18 or older. If you are under 18, please do not play.</li>
+      <li>You may not play if you are on a sanctions list, or in a country or region under comprehensive sanctions.</li>
+    </ul>
+
+    <h2 class="h3">Scope and conduct</h2>
+    <ul class="rule-list">
+      <li><b>In scope:</b> the agent and sayso's check, through the game page's form, using what you write in your message.</li>
+      <li><b>Out of scope:</b> the server, the hosting, Cloudflare, sayso's other servers, keys, other players and their data, flooding the service with traffic, Base mainnet, and tricking real people. Report anything you find out of scope privately to <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</li>
+      <li>No real people's private data, yours or anyone else's, and no keys or seed phrases.</li>
+      <li>Nothing illegal, no threats and no harassment.</li>
+      <li>Do not impersonate real people. Posing as the game's made-up vendors and colleagues is the game; posing as a real, named person is not.</li>
+      <li>We may remove any entry and block any player, without notice.</li>
+    </ul>
+
+    <h2 class="h3">No promises</h2>
+    <ul class="rule-list">
+      <li>The game can change or stop at any time.</li>
+      <li>The agent's notes in the feed are written by an AI model, not by us. Nothing here is investment advice.</li>
+      <li>Not affiliated with or endorsed by Devcon or the Ethereum Foundation.</li>
+    </ul>
+
+    <h2 id="privacy" class="h3">Privacy notice</h2>
+    <p>This covers the game only. The rest of sayso is on the <a href="https://saysoio.com/privacy">privacy page</a>.</p>
+    <ul class="rule-list">
+      <li><b>Public:</b> everything you type is public. The live feed shows your handle, your message, the channel, the payment the agent proposed, its note on why, sayso's verdict and the transaction, if any. A short excerpt of a stopped message can also appear in the list of tricks sayso stopped. Payments are public on Base Sepolia itself.</li>
+      <li><b>What we keep:</b> all of the above, the time, and your IP address: an IPv4 address in full, or the first half (the /64 network) of an IPv6 address. The IP address is never shown on the page; we use it for the rate limits. The server's request log also records your IP address with each request.</li>
+      <li><b>How long:</b> the request log keeps your IP address for up to 30 days. Everything else, including the IP address stored with each try, is kept with no end date yet. When we set one, it will be on this page.</li>
+      <li><b>Who receives your messages:</b> Anthropic (USA), whose Claude model plays the agent, receives your handle and each message. The game's code can send these calls through a network proxy; the live game is set up to call Anthropic directly. When the agent proposes a payment, your handle and message go with it to sayso's check (its test server, <code>sepolia.saysoio.com</code>), which may pass them to its decision model and keeps them in its signed decision log, which is not public.</li>
+      <li><b>Where:</b> the game's server runs at Timeweb Cloud in Amsterdam, the Netherlands. The page is served through Cloudflare. The team may copy the game's data off the server as a backup.</li>
+      <li><b>Why:</b> to run the game and to test and improve sayso's check.</li>
+      <li><b>In your browser:</b> the page remembers your handle in your browser's local storage for next time. No cookies, no analytics.</li>
+      <li><b>Removal:</b> email <a href="mailto:security@saysoio.com">security@saysoio.com</a> with your handle and the time you played. We take the entry off the public feed, and delete our stored copy if you ask. A transaction on Base Sepolia cannot be removed.</li>
+    </ul>
+  </main>
+
+  <footer class="foot"><div class="wrap foot-in">
+    <p class="foot-links"><a href="/game/">Back to the game</a><a href="https://saysoio.com/privacy">Privacy</a><a href="mailto:security@saysoio.com">security@saysoio.com</a></p>
+    <p>A live demo of sayso, the check before your AI agent signs.</p>
+  </div></footer>
+</body>
+</html>

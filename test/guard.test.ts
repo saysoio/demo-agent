@@ -158,6 +158,7 @@ test('off loopback the box needs a trusted proxy and its header', () => {
 test('static paths stay in game/ and take only known types', () => {
   assert.deepEqual(staticPath('/game/'), { rel: 'game/index.html', type: 'text/html; charset=utf-8' })
   assert.deepEqual(staticPath('/game/app.js'), { rel: 'game/app.js', type: 'text/javascript; charset=utf-8' })
+  assert.deepEqual(staticPath('/game/rules.html'), { rel: 'game/rules.html', type: 'text/html; charset=utf-8' })
   for (const p of ['/game/../src/config.ts', '/game/../package.json', '/game/x/../../.env', '/game/notes.txt', '/src/main.ts', '/game']) assert.equal(staticPath(p), null, p)
 })
 

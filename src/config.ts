@@ -177,7 +177,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     saysoApi: (env.DEMO_SAYSO_API?.trim() || net.saysoApi).replace(/\/$/, ''),
     vendors: vendors.length ? vendors : FAKE_VENDORS,
     port: int('DEMO_PORT', 8787), host: env.DEMO_HOST ?? '127.0.0.1', dataDir: env.DEMO_DATA_DIR ?? 'data',
-    tickMs: int('DEMO_TICK_MS', 3000), vendorInvoiceEveryMs: int('DEMO_VENDOR_INVOICE_EVERY_MS', 20 * 60_000),
+    tickMs: int('DEMO_TICK_MS', 3000), vendorInvoiceEveryMs: int('DEMO_VENDOR_INVOICE_EVERY_MS', 2 * 60 * 60_000),
     maxFeeGwei: /^\d+(\.\d+)?$/.test(env.DEMO_MAX_FEE_GWEI ?? '') ? env.DEMO_MAX_FEE_GWEI! : '1',
     maxPerPayment, caps: caps(env, asset), sourceUrl: urlSetting(env, 'DEMO_SOURCE_URL', ['https:'], { credentials: false }),
     spend: parseSpend(env), agentName: env.DEMO_AGENT_NAME?.trim() || 'Penny',

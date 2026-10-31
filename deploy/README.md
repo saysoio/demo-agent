@@ -149,7 +149,10 @@ With a clone, updates are `git pull --ff-only` instead of the archive above.
    `DEMO_MAX_PER_PAYMENT`, `DEMO_DAILY_CAP` (see the end of `.env.example`).
 2. `npm run setup`. Read the compiled rules, type "sign". It writes the agent's sayso API key to `data/sayso-api-key`
    and what was signed to `data/signed-rules.json` (the published text, vendors, caps, asset, strictness, mandate id and
-   hash, time; nothing secret).
+   hash, time; nothing secret). Run again for a wallet already registered to this owner (new caps, new vendors), it
+   only signs the new rules: no key is written, the box keeps its `DEMO_SAYSO_API_KEY`, and any old
+   `data/sayso-api-key` on the Mac is not a new one, so copy only `signed-rules.json` (and set the same caps in the box's
+   `.env`).
 3. Copy both to the box (step 6 moves the key into `.env` and deletes the copy):
 
    ```bash

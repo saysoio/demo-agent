@@ -85,6 +85,19 @@ export async function switchEnforce(set: () => Promise<unknown>, log: (s: string
   }
 }
 
+/** sayso's answer when this wallet is registered already: to this owner it changes nothing, and the key stays as it was. */
+export const alreadyRegistered = (e: unknown) => /^sayso \/wallets\/register 409: this wallet is already registered;/.test(String((e as Error)?.message ?? ''))
+
+/** Registers the wallet and returns its new API key, or null when this owner registered it before: then sayso keeps the
+ *  key it gave the first time, and setup only signs the new rules. A wallet linked to another owner still fails. */
+export async function register(reg: () => Promise<{ apiKey: string }>, log: (s: string) => void = console.log): Promise<string | null> {
+  try { return (await reg()).apiKey } catch (e) {
+    if (!alreadyRegistered(e)) throw e
+    log('note: this wallet is already registered to this owner; its API key stays as it is (the box keeps using it), and only the rules are signed again.')
+    return null
+  }
+}
+
 async function confirmed(): Promise<boolean> {
   if (!process.stdin.isTTY) return false
   const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -113,16 +126,16 @@ async function main() {
   if (!(await confirmed())) throw new Error('not confirmed; nothing was registered or signed')
 
   const opts: CallOptions = { chainId: cfg.chainId, ...(env.DEMO_INVITE ? { invite: env.DEMO_INVITE } : {}) }
-  const { apiKey } = await registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts)
+  const apiKey = await register(() => registerWallet(cfg.saysoApi, providerSigner(agent as any), owner.address, opts))
   const signed = { ...compiled, summary: rules.text }
   const { mandateId } = await setMandate(cfg.saysoApi, owner, agent.address, rules.text, signed, opts)
   const switched = await switchEnforce(() => setCheckMode(cfg.saysoApi, owner, agent.address, 'enforce', opts))
   mkdirSync(cfg.dataDir, { recursive: true })
   const file = join(cfg.dataDir, 'sayso-api-key')
-  writeFileSync(file, `${apiKey}\n`, { mode: 0o600 })
+  if (apiKey) writeFileSync(file, `${apiKey}\n`, { mode: 0o600 })
   const rulesFile = join(cfg.dataDir, SIGNED_RULES_FILE)
   writeFileSync(rulesFile, `${JSON.stringify(signedRecord(rules, cfg.vendors, cfg.network, signed, mandateId ?? null, new Date()), null, 2)}\n`, { mode: 0o644 })
-  console.log(`done: ${agent.address} registered, rules signed, enforce on${switched ? '' : ' in the SDK (server switch off)'}. API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box); the signed rules to ${rulesFile} (copy it to the box's data volume).`)
+  console.log(`done: ${agent.address} ${apiKey ? 'registered' : 'was registered already'}, rules signed, enforce on${switched ? '' : ' in the SDK (server switch off)'}. ${apiKey ? `API key written to ${file} (put it in DEMO_SAYSO_API_KEY on the box)` : 'The API key on the box stays'}; the signed rules to ${rulesFile} (copy it to the box's data volume).`)
 }
 
 if (import.meta.main) main().catch(e => { console.error(`setup failed: ${(e as Error).message}`); process.exit(1) })

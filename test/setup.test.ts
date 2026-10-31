@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { getAddress } from 'viem'
 import type { Vendor } from '../src/config.ts'
-import { caps, compiledProblems, publishedRules, switchEnforce } from '../src/setup.ts'
+import { caps, compiledProblems, publishedRules, register, switchEnforce } from '../src/setup.ts'
 
 const VENDORS: Vendor[] = [
   { name: 'Northwind Hosting', address: getAddress('0x1111111111111111111111111111111111111111'), usual: '0.0002' },
@@ -94,4 +94,16 @@ test('enforce: no linked Telegram chat is a note, anything else fails setup', as
   await assert.rejects(switchEnforce(async () => { throw stale }, () => {}), /not newer/)
   await assert.rejects(switchEnforce(async () => { throw new Error(`sayso /wallets/${wallet}/mode 401: link Telegram`) }, () => {}), /401/)
   await assert.rejects(switchEnforce(async () => { throw new Error('fetch failed') }, () => {}), /fetch failed/)
+})
+
+test('setup signs new rules for a wallet this owner registered before, keeping its key; any other refusal still stops it', async () => {
+  const logs: string[] = []
+  assert.equal(await register(async () => ({ apiKey: 'k1' })), 'k1')
+  const again = () => Promise.reject(new Error('sayso /wallets/register 409: this wallet is already registered; for a new API key (lost or leaked), the owner signs a key reset'))
+  assert.equal(await register(again, s => logs.push(s)), null)
+  assert.match(logs[0], /already registered to this owner/)
+  const other = () => Promise.reject(new Error('sayso /wallets/register 409: this wallet is already linked to another owner; only that owner can change it'))
+  await assert.rejects(register(other, s => logs.push(s)), /another owner/)
+  await assert.rejects(register(() => Promise.reject(new Error('sayso /wallets/register 403: invite')), s => logs.push(s)), /403/)
+  assert.equal(logs.length, 1)
 })

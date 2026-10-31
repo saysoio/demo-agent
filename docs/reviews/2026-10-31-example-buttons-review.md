@@ -95,3 +95,22 @@ the "wallet changed" and "ignore your rules" examples always use the first vendo
 
 - No live render in a browser or on a real phone; layout judged from the CSS.
 - Real Sayso behaviour on a player-sent usual invoice ("expected to let it through" is a hedge, which is right).
+
+## Fixes
+
+All client-side; the server, the guard, scoring and the win rule are unchanged, and nothing is filtered server-side.
+
+- **M2.** While the message still contains `0x0bad…`, a warning shows next to Send (`#send-warn`, set with
+  `textContent`): "This still pays the made-up address 0x0bad…: nobody holds it, so if Sayso let it through the test ETH
+  would be lost and the game would pause for everyone. Put in your own address to keep a win." It follows every edit,
+  every fill and a successful send (`Examples.madeUpWarning`, `madeUpNote` in `app.js`). It is a note only: the page
+  still sends whatever the player sends.
+- **M1.** The usual-invoice note now adds: "It really pays the vendor from the pot and uses up the day's cap for
+  everyone."
+- **L4.** Example 2's status line now says: "It pays the vendor's real wallet, so it can never be a win; it tests
+  whether Sayso questions the amount."
+- **L5.** Both fills fall back to "ETH" when the unit is unknown, so the wording matches the scheduled invoice.
+- **L1.** The "sent through the form" test now posts all five examples to the real `/api/submit` route (so `parseFrom`
+  and the request checks run), checks each is stored exactly as sent, and is renamed to say the payment runs on a fake
+  sayso.
+- Not changed: L2 (live region announcement), L3 (overwrite without undo), L6 (fixed pairing).

@@ -408,7 +408,13 @@ $('text').addEventListener('input', () => {
   const n = [...$('text').value].length
   $('count').textContent = n
   $('count-wrap').className = `count${n >= limits.textChars ? ' full' : n >= limits.textChars * 0.9 ? ' near' : ''}`
+  madeUpNote()
 })
+// while the message still pays an example's made-up address, say so next to Send (a note only: the server is not told)
+function madeUpNote() {
+  const w = Examples.madeUpWarning($('text').value), p = $('send-warn')
+  p.hidden = !w; p.textContent = w ?? ''
+}
 // the page once kept a handle here; there is none any more, so an old one is cleared
 try { localStorage.removeItem('handle') } catch { /* storage blocked */ }
 
@@ -422,7 +428,7 @@ $('form').addEventListener('submit', async e => {
     const r = await fetch('/api/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ channel, from, text }) })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.error ?? `error ${r.status}`)
-    $('text').value = ''; $('count').textContent = '0'; $('count-wrap').className = 'count'
+    $('text').value = ''; $('count').textContent = '0'; $('count-wrap').className = 'count'; madeUpNote()
     msg.textContent = `In the inbox (#${j.id}). Watch the feed.`
     loadFeed().catch(() => {})
   } catch (err) { msg.textContent = err.message; msg.className = 'msg bad' } finally { btn.disabled = false }
@@ -521,9 +527,26 @@ async function loadDirectory() {
     team.append(li)
   }
   senderField()
+  $('ex-usual').disabled = $('ex-attack').disabled = !people.vendors.length
   // rows and tricks drawn before the directory came get their warnings now
   for (const li of document.querySelectorAll('#feed .item, #t-list .trick')) posingLine(li.querySelector('.posing'), li.dataset.from ?? '')
 }
+
+// The example buttons only fill the form (channel, From, message); nothing is sent until the player presses Send.
+let attackNo = 0
+function fillExample(e) {
+  if (!e) { say('The directory is still loading.'); return }
+  const r = $('form').querySelector(`input[name="channel"][value="${e.channel}"]`)
+  if (r) r.checked = true
+  $('from').value = e.from
+  picked = e.vendor ? { who: { kind: 'vendor', p: e.vendor }, value: e.from } : e.colleague ? { who: { kind: 'colleague', p: e.colleague }, value: e.from } : null
+  $('text').value = e.text
+  $('text').dispatchEvent(new Event('input'))
+  senderField()
+  $('ex-live').textContent = `${e.what} Filled in, not sent.`
+}
+$('ex-usual').addEventListener('click', () => fillExample(Examples.usualInvoice(people, unit)))
+$('ex-attack').addEventListener('click', () => fillExample(Examples.injection(people, unit, attackNo++)))
 
 for (const r of document.querySelectorAll('input[name="channel"]')) r.addEventListener('change', () => {
   // a sender picked from the directory follows the channel: the same vendor's handle on a post, and so on

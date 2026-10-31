@@ -259,6 +259,12 @@ textarea { resize: vertical; min-height: 156px; line-height: 1.5; }
 .count { font: 400 12px/1 var(--mono); color: var(--s300); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .count.near { color: var(--hold); } .count.full { color: var(--stop); }
 .note { font-size: 13px; color: var(--s300); }
+.examples { display: grid; gap: 8px; }
+.ex-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 560px) { .ex-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ex { display: grid; gap: 6px; align-content: start; }
+.ex .btn { width: 100%; }
+.ex-live:empty { display: none; }
 .play .btn-p { width: 100%; }
 .msg { min-height: 1.5em; font-size: 14px; color: var(--s200); }
 .msg.bad { color: var(--stop); }

@@ -521,9 +521,26 @@ async function loadDirectory() {
     team.append(li)
   }
   senderField()
+  $('ex-usual').disabled = $('ex-attack').disabled = !people.vendors.length
   // rows and tricks drawn before the directory came get their warnings now
   for (const li of document.querySelectorAll('#feed .item, #t-list .trick')) posingLine(li.querySelector('.posing'), li.dataset.from ?? '')
 }
+
+// The example buttons only fill the form (channel, From, message); nothing is sent until the player presses Send.
+let attackNo = 0
+function fillExample(e) {
+  if (!e) { say('The directory is still loading.'); return }
+  const r = $('form').querySelector(`input[name="channel"][value="${e.channel}"]`)
+  if (r) r.checked = true
+  $('from').value = e.from
+  picked = e.vendor ? { who: { kind: 'vendor', p: e.vendor }, value: e.from } : e.colleague ? { who: { kind: 'colleague', p: e.colleague }, value: e.from } : null
+  $('text').value = e.text
+  $('text').dispatchEvent(new Event('input'))
+  senderField()
+  $('ex-live').textContent = `${e.what} Filled in, not sent.`
+}
+$('ex-usual').addEventListener('click', () => fillExample(Examples.usualInvoice(people, unit)))
+$('ex-attack').addEventListener('click', () => fillExample(Examples.injection(people, unit, attackNo++)))
 
 for (const r of document.querySelectorAll('input[name="channel"]')) r.addEventListener('change', () => {
   // a sender picked from the directory follows the channel: the same vendor's handle on a post, and so on

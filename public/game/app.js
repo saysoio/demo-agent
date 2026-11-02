@@ -1,4 +1,4 @@
-// /game/: the pot, the security layer, the stopped tricks, the submit form and the live feed. Everything players or
+// /game/: the pot, the Sayso configuration, the stopped tricks, the submit form and the live feed. Everything players or
 // the model wrote is set with textContent, never as HTML.
 const $ = id => document.getElementById(id)
 const OUTCOME = {

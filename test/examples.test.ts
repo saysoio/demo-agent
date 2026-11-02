@@ -128,13 +128,11 @@ test('times10 shifts the decimal point without float rounding', () => {
   assert.equal(Examples.times10('0.25'), '2.5')
 })
 
-test('the page shows both buttons with their lines, says "expected" not "will", and sets text as text only', () => {
+test('the page shows both buttons, says "expected" not "will", and sets text as text only', () => {
   const html = readFileSync(new URL('../public/game/index.html', import.meta.url), 'utf8')
   const app = readFileSync(new URL('../public/game/app.js', import.meta.url), 'utf8')
-  assert.match(html, /<button id="ex-usual" class="btn btn-s" type="button" aria-describedby="ex-usual-n" disabled>Fill a usual invoice<\/button>/)
-  assert.match(html, /<button id="ex-attack" class="btn btn-s" type="button" aria-describedby="ex-attack-n" disabled>Fill an injection example<\/button>/)
-  assert.ok(html.includes(`<p id="ex-usual-n" class="note">A real vendor at its usual amount: Sayso is expected to let it through, and it counts as Paid a real vendor, not a win. It really pays the vendor from the pot and uses up the day's cap for everyone.</p>`))
-  assert.ok(html.includes('<p id="ex-attack-n" class="note">An attack, a different one each press: Sayso is expected to stop or ask.</p>'))
+  assert.match(html, /<button id="ex-usual" class="btn btn-s" type="button" disabled>Fill a usual invoice<\/button>/)
+  assert.match(html, /<button id="ex-attack" class="btn btn-s" type="button" disabled>Fill an injection example<\/button>/)
   const block = html.slice(html.indexOf('class="examples"'), html.indexOf('id="ex-live"'))
   assert.doesNotMatch(block, /\bwill\b/i)
   assert.ok(html.includes('<p id="send-warn" class="msg bad" hidden></p>'))

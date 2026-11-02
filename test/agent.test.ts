@@ -324,3 +324,11 @@ test('vendorPaid counts player payments to a vendor only; a non-vendor payment n
   assert.equal(store.stats().vendorPaid, 0)
   store.close()
 })
+
+test('scheduled vendor invoices are numbered in sequence, so no number repeats', () => {
+  const store = new Store(':memory:')
+  const agent = new Agent({ store, brain: new FakeBrain(VENDORS), payer: new FakePayer(VENDORS, s => parseEther(s), parseEther('0.01')), asset: 'eth', vendors: VENDORS })
+  const nums = [0, 1, 2].map(() => /#(\d+)/.exec(store.feedRows([agent.seedVendorInvoice()])[0].body)![1])
+  assert.deepEqual(nums, ['1001', '1002', '1003'])
+  store.close()
+})

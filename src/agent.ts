@@ -61,7 +61,8 @@ export class Agent {
   /** A real invoice from the next vendor in the book, at its usual amount, sent from its billing address. */
   seedVendorInvoice(): number {
     const i = this.nextVendor++ % this.o.vendors.length, v = this.o.vendors[i]
-    const n = 1000 + Math.floor(Math.random() * 9000)
+    // numbered in sequence, never at random: sayso asks about an invoice number it has seen paid (repeat-invoice)
+    const n = 1001 + this.o.store.vendorInvoices()
     return this.o.store.add({
       source: 'vendor', from: mailbox(this.book[i]), ipKey: 'vendor', channel: 'invoice',
       body: `Invoice #${n} from ${v.name}. Amount due: ${v.usual} ${unitName(this.o.asset)}. Pay to ${v.address}. Thank you for your business.`,

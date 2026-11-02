@@ -103,6 +103,9 @@ export class Store {
     return Number(r.lastInsertRowid)
   }
 
+  /** How many scheduled vendor invoices were ever added (each is numbered after the ones before it). */
+  vendorInvoices(): number { return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE source = 'vendor'`).get() as any).n) }
+
   queued(): number { return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE status = 'queued'`).get() as any).n) }
 
   /** The oldest queued attempt, marked "thinking" in the same step. */

@@ -1,6 +1,7 @@
 // One parser per API route: each takes what came over the wire and returns typed values or an error for the player.
 // Player text is cleaned here, never filtered for meaning: tricking the agent is the game.
 import type { IncomingMessage } from 'node:http'
+import { getAddress, isAddress } from 'viem'
 import { CHANNELS, type Channel } from '../store.ts'
 import { clip, tidy } from './text.ts'
 
@@ -118,6 +119,23 @@ export function parseAdminPause(b: unknown): Parsed<AdminPause> {
   if (typeof paused !== 'boolean') return fail('paused must be true or false')
   if (why !== undefined && typeof why !== 'string') return fail('why must be text')
   return { ok: true, value: { paused, why: clip(tidy(why ?? ''), 120) || 'paused by admin' } }
+}
+
+/** A prize claim: the winning try, the code its sender got back, and where to reach and pay them. The handle is kept
+ *  for the operator only; letters, digits and @ . _ - + : / only, so it can never carry markup. */
+export interface Claim { id: number; code: string; handle: string; payout: string }
+export const MAX_HANDLE_CHARS = 80
+const HANDLE = /^[\p{L}\p{N}@._+:\/ -]+$/u
+export function parseClaim(b: unknown): Parsed<Claim> {
+  const id = boundedInt(field(b, 'id'), 1, Number.MAX_SAFE_INTEGER), code = field(b, 'code'), handle = field(b, 'handle'), payout = field(b, 'payout')
+  if (id === null) return fail('id must be a whole number')
+  if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return fail('the claim code is missing; claim from the page you sent the try from')
+  const h = typeof handle === 'string' ? tidy(handle) : ''
+  if (!h || [...h].length > MAX_HANDLE_CHARS || !HANDLE.test(h)) return fail(`handle: an X or Telegram handle or an email, up to ${MAX_HANDLE_CHARS} characters`)
+  // all lower or all upper case is taken as typed; mixed case must carry a valid checksum (a typo there is caught)
+  const pay = typeof payout === 'string' ? payout.trim() : ''
+  if (!isAddress(pay, { strict: !/^0x([0-9a-f]{40}|[0-9A-F]{40})$/.test(pay) })) return fail('payout: a 0x address on Base (check it for typos)')
+  return { ok: true, value: { id, code, handle: h, payout: getAddress(pay.toLowerCase()) } }
 }
 
 export interface AdminHide { id: number; hidden: boolean }

@@ -1,5 +1,6 @@
 // One row per attempt: what came in, what the agent proposed, what sayso said, what happened onchain. SQLite on the
 // box (node:sqlite); /game/ reads it through the server's public feed, which shows only the fields in src/guard/expose.ts.
+import { timingSafeEqual } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -83,21 +84,27 @@ export class Store {
         output_tokens INTEGER NOT NULL, cache_write_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, usd REAL NOT NULL
       );
       CREATE INDEX IF NOT EXISTS model_calls_at ON model_calls (at);
+      CREATE TABLE IF NOT EXISTS claims (attempt_id INTEGER PRIMARY KEY, handle TEXT NOT NULL, payout TEXT NOT NULL, at INTEGER NOT NULL);
     `)
     // databases made before check_rule or sender existed. The handle column is left from when players had one: it is
     // NOT NULL in those databases, so new rows write an empty one, and nothing reads it
     const cols = new Set((this.db.prepare(`PRAGMA table_info(attempts)`).all() as any[]).map(c => String(c.name)))
     if (!cols.has('check_rule')) this.db.exec(`ALTER TABLE attempts ADD COLUMN check_rule TEXT`)
     if (!cols.has('sender')) this.db.exec(`ALTER TABLE attempts ADD COLUMN sender TEXT`)
+    // the sha256 of the claim code handed to the try's sender; never read into an Attempt, so never public
+    if (!cols.has('claim_hash')) this.db.exec(`ALTER TABLE attempts ADD COLUMN claim_hash TEXT`)
     // a restart mid-check leaves rows "thinking": nothing was confirmed for them, so they end as errors
     this.db.prepare(`UPDATE attempts SET status = 'done', outcome = 'error', note = 'the agent restarted during this attempt', done_at = ? WHERE status = 'thinking'`).run(this.now())
   }
 
-  add(a: { source: Source; from?: string | null; ipKey: string; channel: Channel; body: string }): number {
-    const r = this.db.prepare(`INSERT INTO attempts (created_at, source, handle, sender, ip_key, channel, body) VALUES (?, ?, '', ?, ?, ?, ?)`)
-      .run(this.now(), a.source, a.from ?? null, a.ipKey, a.channel, a.body)
+  add(a: { source: Source; from?: string | null; ipKey: string; channel: Channel; body: string; claimHash?: string }): number {
+    const r = this.db.prepare(`INSERT INTO attempts (created_at, source, handle, sender, ip_key, channel, body, claim_hash) VALUES (?, ?, '', ?, ?, ?, ?, ?)`)
+      .run(this.now(), a.source, a.from ?? null, a.ipKey, a.channel, a.body, a.claimHash ?? null)
     return Number(r.lastInsertRowid)
   }
+
+  /** How many scheduled vendor invoices were ever added (each is numbered after the ones before it). */
+  vendorInvoices(): number { return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE source = 'vendor'`).get() as any).n) }
 
   queued(): number { return Number((this.db.prepare(`SELECT COUNT(*) AS n FROM attempts WHERE status = 'queued'`).get() as any).n) }
 
@@ -163,6 +170,23 @@ export class Store {
   setFlag(name: string, value: string | null) {
     if (value === null) this.db.prepare(`DELETE FROM flags WHERE name = ?`).run(name)
     else this.db.prepare(`INSERT INTO flags (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value`).run(name, value)
+  }
+
+  /** Records the prize claim for a winning try whose claim code hashes to `codeHash`. 'wrong code' also covers a try
+   *  that does not exist, so a guess learns nothing; 'not a win' and 'claimed' only follow a right code. */
+  claim(id: number, codeHash: string, handle: string, payout: string): 'ok' | 'wrong code' | 'not a win' | 'claimed' {
+    const a = this.db.prepare(`SELECT claim_hash, win FROM attempts WHERE id = ?`).get(id) as any
+    if (!a || !a.claim_hash || !timingSafeEqual(Buffer.from(String(a.claim_hash)), Buffer.from(codeHash))) return 'wrong code'
+    if (!a.win) return 'not a win'
+    const r = this.db.prepare(`INSERT INTO claims (attempt_id, handle, payout, at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`).run(id, handle, payout, this.now())
+    return r.changes ? 'ok' : 'claimed'
+  }
+
+  /** Every prize claim, oldest first, with the win it is for: for the operator, who verifies and pays the first. */
+  claims(): Array<{ id: number; handle: string; payout: string; claimedAt: number; wonTo: string | null; amount: string | null; txHash: string | null; wonAt: number | null }> {
+    return (this.db.prepare(`SELECT c.attempt_id AS id, c.handle, c.payout, c.at, a.to_addr, a.amount, a.tx_hash, a.done_at FROM claims c
+      JOIN attempts a ON a.id = c.attempt_id ORDER BY a.done_at, c.attempt_id`).all() as any[])
+      .map(r => ({ id: Number(r.id), handle: r.handle, payout: r.payout, claimedAt: Number(r.at), wonTo: r.to_addr, amount: r.amount, txHash: r.tx_hash, wonAt: r.done_at === null ? null : Number(r.done_at) }))
   }
 
   close() { this.db.close() }

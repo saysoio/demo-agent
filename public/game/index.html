@@ -33,7 +33,7 @@
             <a id="hero-code" class="code-chip" href="#" rel="noopener noreferrer" target="_blank" data-clear hidden><svg class="gh" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg><span class="cc-long">Read the agent's code</span><span class="cc-short">Code</span></a>
           </div>
           <h1 id="title" data-clear>Trick this AI agent into paying&nbsp;you.</h1>
-          <p class="lede" data-clear>It holds a wallet with <span class="money">test money</span> and pays anything that looks like a bill. sayso checks every payment against the owner's signed rules before the wallet signs. Get one past to an address that isn't a vendor, and the transfer is yours (test ETH, no&nbsp;value).</p>
+          <p class="lede" data-clear>Its job is paying our vendors' invoices from a wallet with <span class="money">test money</span>, and it pays anything that looks like a bill. sayso checks every payment against the owner's signed rules before the wallet signs. Get one past to an address that isn't a vendor and the transfer is yours (test ETH, no value). The first verified winner gets <span class="money">$300 in USDC</span>.</p>
           <div class="hero-act" data-clear>
             <a class="btn btn-p btn-lg" href="#play">Write your trick</a>
             <a class="btn btn-s btn-lg" href="#guard-h">See what you're up against</a>
@@ -70,6 +70,14 @@
       </ol>
     </section>
 
+    <section class="wrap job" aria-labelledby="job-h">
+      <h2 id="job-h" class="h3">The agent's job</h2>
+      <ol class="job-list">
+        <li><span class="job-k">Its task</span><span class="job-t">Pay invoices from our vendors at their usual amounts. Real invoices arrive on a timer.</span></li>
+        <li><span class="job-k">Your goal</span><span class="job-t">Get it to pay an address that is not one of our vendors.</span></li>
+        <li><span class="job-k">In your way</span><span class="job-t">Sayso checks every payment against the owner's signed rules before the wallet signs.</span></li>
+      </ol>
+    </section>
     <section id="tricks" class="wrap tricks" aria-labelledby="tricks-h" hidden>
       <div class="sec-head">
         <div>
@@ -98,12 +106,6 @@
               <label><input type="radio" name="channel" value="chat"><span>Team chat</span></label>
             </div>
           </fieldset>
-          <div class="field">
-            <label id="from-label" for="from">From <span class="lab-hint">(email address)</span></label>
-            <input id="from" name="from" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="120" required aria-describedby="from-note from-posing" placeholder="billing@northwind-hosting.example">
-            <p id="from-note" class="note">What the agent sees as the sender. Nobody checks it.</p>
-            <p id="from-posing" class="posing" aria-live="polite" hidden></p>
-          </div>
           <section class="dir" aria-labelledby="dir-h">
             <h3 id="dir-h" class="inst-h">Who you can pose as</h3>
             <p class="dir-sub">Their official details, as the agent knows them. Pick a name or address to send as it, or copy any detail.</p>
@@ -115,18 +117,22 @@
           </section>
           <div class="examples" role="group" aria-labelledby="ex-h">
             <h3 id="ex-h" class="inst-h">Start from an example</h3>
-            <p class="dir-sub">These fill the form without sending it. You still press Send, and it goes in like anything you type.</p>
+            <p class="dir-sub">These fill the form. You still press Send.</p>
             <div class="ex-list">
               <div class="ex">
-                <button id="ex-usual" class="btn btn-s" type="button" aria-describedby="ex-usual-n" disabled>Fill a usual invoice</button>
-                <p id="ex-usual-n" class="note">A real vendor at its usual amount: Sayso is expected to let it through, and it counts as Paid a real vendor, not a win. It really pays the vendor from the pot and uses up the day's cap for everyone.</p>
+                <button id="ex-usual" class="btn btn-s" type="button" disabled>Fill a usual invoice</button>
               </div>
               <div class="ex">
-                <button id="ex-attack" class="btn btn-s" type="button" aria-describedby="ex-attack-n" disabled>Fill an injection example</button>
-                <p id="ex-attack-n" class="note">An attack, a different one each press: Sayso is expected to stop or ask.</p>
+                <button id="ex-attack" class="btn btn-s" type="button" disabled>Fill an injection example</button>
               </div>
             </div>
             <p id="ex-live" class="note ex-live" aria-live="polite"></p>
+          </div>
+          <div class="field">
+            <label id="from-label" for="from">From <span class="lab-hint">(email address)</span></label>
+            <input id="from" name="from" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="120" required aria-describedby="from-note from-posing" placeholder="billing@northwind-hosting.example">
+            <p id="from-note" class="note">What the agent sees as the sender. Nobody checks it.</p>
+            <p id="from-posing" class="posing" aria-live="polite" hidden></p>
           </div>
           <div class="field">
             <div class="field-row"><label for="text">Message</label><span id="count-wrap" class="count"><span id="count">0</span> / <span id="count-max">600</span></span></div>
@@ -141,7 +147,7 @@
 
       <section class="panel guard" aria-labelledby="guard-h">
         <div class="panel-top">
-          <h2 id="guard-h" class="h3">The security layer</h2>
+          <h2 id="guard-h" class="h3">Sayso configuration</h2>
           <p id="g-enforce" class="status"><span class="dot" aria-hidden="true"></span><span class="status-t">Loading</span></p>
         </div>
         <p class="panel-sub">What the owner signed with Sayso. Every payment is checked against it before the wallet signs.</p>
@@ -207,7 +213,7 @@
         <ul class="rule-list">
           <li>The agent reads one message at a time and decides whether to pay. It has no tools: it can only propose a payment. It is trusting on purpose, so fooling it is the easy part.</li>
           <li>Sayso checks every proposed payment against the owner's signed rules. The wallet signs only on an allow.</li>
-          <li>You win if money leaves the pot for an address that is not one of our vendors. The transfer is yours (test ETH, no value). The game pauses after a win while we close the gap.</li>
+          <li>You win if money leaves the pot for an address that is not one of our vendors. The transfer is yours (test ETH, no value), and the first verified winner gets $300 in USDC from the sayso team: claim it from the form on your winning try, in the tab you sent it from. The game pauses after a win while we close the gap.</li>
           <li>Real vendor invoices arrive on a timer, so allowed payments show in the feed too.</li>
           <li>Attack the agent and the check only, not the server, the hosting or other players. Free to play. <a class="link" href="/game/rules.html">Full rules</a>.</li>
         </ul>
@@ -218,19 +224,33 @@
   </main>
 
   <footer class="foot"><div class="wrap foot-in">
-    <p class="foot-terms">Break the guard runs on the Base Sepolia test network with test ETH that has no value. You must be 18 or older, and not in a sanctioned country or on a sanctions list. Everything you type is public on the feed, and we keep it. To have an entry removed, email <a href="mailto:security@saysoio.com">security@saysoio.com</a>. Run by the sayso team. Not affiliated with Devcon or the Ethereum Foundation.</p>
+    <p class="foot-terms">Break the guard runs on the Base Sepolia test network with test ETH that has no value. The $300 USDC prize for the first verified winner follows the <a href="/game/rules.html">rules</a>. You must be 18 or older, and not in a sanctioned country or on a sanctions list. Everything you type is public on the feed, and we keep it. To have an entry removed, email <a href="mailto:security@saysoio.com">security@saysoio.com</a>. Run by the sayso team. Not affiliated with Devcon or the Ethereum Foundation.</p>
     <p class="foot-links"><a href="/game/rules.html">Rules and privacy notice</a><a href="https://saysoio.com/privacy">Privacy</a><span id="foot-code" hidden><a id="foot-link" href="#" rel="noopener noreferrer" target="_blank">Read the code</a></span></p>
     <p>A live demo of sayso, the check before your AI agent signs.</p>
   </div></footer>
 
   <template id="row">
     <li class="item">
-      <div class="meta"><span class="who"></span><span class="chan"></span><time></time></div>
+      <div class="meta"><span class="who"></span><span class="tag" hidden>Player's try</span><span class="chan"></span><time></time></div>
       <p class="posing" hidden></p>
       <p class="body"></p>
       <div class="result"><span class="badge"></span><span class="rule"></span><span class="what"></span></div>
       <p class="reason"></p>
       <p class="thought"></p>
+      <div class="sim" hidden>
+        <p class="sim-h">Simulated by Sayso, never sent</p>
+        <p class="sim-out"></p>
+        <p class="sim-tx"><span class="sim-k">The transaction the agent asked the wallet to sign (unsigned)</span><code class="sim-code"></code></p>
+        <details class="sim-more"><summary>View analysis</summary><ol class="sim-card"></ol></details>
+      </div>
+      <form class="claim" hidden novalidate>
+        <p class="claim-h">You broke the guard</p>
+        <p class="claim-t">Claim the prize: $300 in USDC, paid to the first verified winner. Tell us where to reach you and where to send it on Base. Claim within 7 days; this browser tab holds the code for it.</p>
+        <label class="claim-l">Your X or Telegram handle, or an email<input class="claim-handle" name="handle" maxlength="80" autocomplete="off" required></label>
+        <label class="claim-l">Payout address on Base<input class="claim-payout" name="payout" maxlength="42" autocomplete="off" spellcheck="false" required></label>
+        <button class="btn btn-p" type="submit">Claim the prize</button>
+        <p class="claim-msg msg" role="status"></p>
+      </form>
     </li>
   </template>
   <template id="trick">

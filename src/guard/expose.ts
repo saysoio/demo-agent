@@ -29,6 +29,8 @@ export const DIRECTORY_VENDOR_FIELDS = ['name', 'email', 'website', 'x', 'wallet
 export const COLLEAGUE_FIELDS = ['name', 'role', 'chat'] as const
 
 /** A stopped trick shows the player text as a short excerpt, never in full. */
+/** sayso's reason on a stopped-trick card, clipped like the excerpt (the feed row keeps it whole) */
+export const TRICK_REASON = 300
 export const TRICK_FIELDS = ['id', 'createdAt', 'from', 'channel', 'toAddr', 'amount', 'rule', 'reason'] as const satisfies readonly (keyof Attempt)[]
 export const TRICK_EXCERPT = 140
 
@@ -64,4 +66,4 @@ export function excerpt(s: string, n: number): string {
   return [...one].length > n ? `${clip(one, n - 1).trimEnd()}…` : one
 }
 
-export const publicTrick = (a: Attempt) => ({ ...pick(a, TRICK_FIELDS), excerpt: excerpt(a.body, TRICK_EXCERPT) })
+export const publicTrick = (a: Attempt) => ({ ...pick(a, TRICK_FIELDS), excerpt: excerpt(a.body, TRICK_EXCERPT), reason: a.reason === null ? null : excerpt(a.reason, TRICK_REASON) })

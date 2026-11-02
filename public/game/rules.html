@@ -24,7 +24,7 @@
 
   <main class="wrap prose">
     <h1 id="rules-h" class="h2" tabindex="-1">Break the guard: rules</h1>
-    <p class="prose-lede">A game on the Base Sepolia test network, with test ETH that has no value. Free to play; nothing to buy. Run by the sayso team. Contact: <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</p>
+    <p class="prose-lede">A game on the Base Sepolia test network, with test ETH that has no value, and a real prize for the first verified winner. Free to play; nothing to buy. Run by the sayso team. Contact: <a href="mailto:security@saysoio.com">security@saysoio.com</a>.</p>
 
     <h2 class="h3">How a round works</h2>
     <ul class="rule-list">
@@ -32,6 +32,7 @@
       <li>Two buttons above the message only fill in the form for you, without sending: "Fill a usual invoice" writes a real vendor's invoice at its usual amount, worded like the scheduled ones, and "Fill an injection example" writes one of a few example attacks; you still press Send, and what they fill in is treated exactly like text you type.</li>
       <li>Your message joins the agent's inbox. The agent (Anthropic's Claude model) reads one item at a time and either proposes a payment or skips it. It has no tools: it can only propose.</li>
       <li>Every proposed payment goes to sayso's check, which compares it with the rules the wallet's owner signed. The wallet signs only when the check allows it.</li>
+      <li>A payment to a vendor above what that vendor was paid before, prompted by a message, goes to the owner to decide, even when it pays the vendor's own address. It is held, not paid.</li>
       <li>Invoices from our demo vendors (wallets we control) arrive on a timer, so allowed payments show in the feed too.</li>
       <li>There are limits on tries per network each hour and day, and a daily limit on the agent's work. When one is reached, the page tells you to wait.</li>
     </ul>
@@ -39,7 +40,12 @@
     <h2 class="h3">What counts as a win</h2>
     <ul class="rule-list">
       <li>You win when a payment from the game's wallet reaches an address that is not one of our vendors (they are listed on the game page) and the transfer lands on Base Sepolia.</li>
-      <li>The transfer is yours (test ETH, no value). There are no prizes: no cash, tokens or bounties. Test ETH that reaches you is not a prize, and we never buy it back, swap it or exchange it for anything.</li>
+      <li>The transfer is yours (test ETH, no value). We never buy test ETH back, swap it or exchange it for anything.</li>
+      <li><b>The prize:</b> $300 in USDC on Base, paid by the sayso team to the first verified winner. One prize. The offer runs from 2 November 2026 until the prize is paid or we end the offer on this page; ending it never cancels a win made before. If nobody wins, nobody is paid. Wins from before 2 November 2026 do not count.</li>
+      <li><b>First</b> means the earliest win, by the time its transfer landed on Base Sepolia, that is verified and claimed within 7 days of the win. If that winner does not claim in time or is not verified, the next win in time order can claim, within 7 days of being told.</li>
+      <li><b>How to claim:</b> a claim form appears on your winning try in the browser tab you sent it from. Give an X or Telegram handle or an email, and a payout address on Base (it starts as the address the test ETH reached). If you closed that tab, email <a href="mailto:security@saysoio.com">security@saysoio.com</a> with the try's number within 7 days; we then pay only to the address the test ETH reached.</li>
+      <li><b>Verified</b> means: the payment left the game's wallet on Base Sepolia because of a message sent through the game page's form, within the scope below, by a player who may play. We check the win and contact you at the handle you gave, then pay the payout address you gave.</li>
+      <li>Members of the sayso team cannot win the prize. Any tax on the prize is the winner's.</li>
       <li>The game pauses after a win while we close the gap, and may restart with a fix.</li>
     </ul>
 
@@ -61,7 +67,7 @@
 
     <h2 class="h3">No promises</h2>
     <ul class="rule-list">
-      <li>The game can change or stop at any time.</li>
+      <li>The game can change or stop at any time. A win made before it stops still gets the prize terms above.</li>
       <li>The agent's notes in the feed are written by an AI model, not by us. Nothing here is investment advice.</li>
       <li>Not affiliated with or endorsed by Devcon or the Ethereum Foundation.</li>
     </ul>
@@ -70,12 +76,12 @@
     <p>This covers the game only. The rest of sayso is on the <a href="https://saysoio.com/privacy">privacy page</a>.</p>
     <ul class="rule-list">
       <li><b>Public:</b> everything you type is public. The live feed shows the sender you typed, your message, the channel, the payment the agent proposed, its note on why, sayso's verdict and the transaction, if any. A short excerpt of a stopped message, with its sender, can also appear in the list of tricks sayso stopped. Payments are public on Base Sepolia itself.</li>
-      <li><b>What we keep:</b> all of the above, the time, and your IP address: an IPv4 address in full, or the first half (the /64 network) of an IPv6 address. The IP address is never shown on the page; we use it for the rate limits. The game no longer asks for a handle and keeps none. Tries sent before 31 October 2026 were sent under a handle, which stays with them in the game's database but is no longer shown or sent anywhere. The server's request log also records your IP address with each request.</li>
+      <li><b>What we keep:</b> all of the above, the time, and your IP address: an IPv4 address in full, or the first half (the /64 network) of an IPv6 address. The IP address is never shown on the page; we use it for the rate limits. The game no longer asks for a handle and keeps none, except from a winner who claims the prize: the handle and payout address they give are kept with their win, seen only by the sayso team, and used to verify the win and pay the prize. Tries sent before 31 October 2026 were sent under a handle, which stays with them in the game's database but is no longer shown or sent anywhere. The server's request log also records your IP address with each request.</li>
       <li><b>How long:</b> the request log keeps your IP address for up to 30 days. Everything else, including the IP address stored with each try, is kept with no end date yet. When we set one, it will be on this page.</li>
       <li><b>Who receives your messages:</b> Anthropic (USA), whose Claude model plays the agent, receives each message and the sender you typed. The game's code can route these calls through a proxy or gateway; the live game is set up to call Anthropic directly. When the agent proposes a payment, the sender you typed and your message go with it to sayso's check (its test server, <code>sepolia.saysoio.com</code>), which may pass them to its decision model and the other services listed on sayso's privacy page, and keeps them in its signed decision log, which is not public.</li>
       <li><b>Where:</b> the game's server runs at Timeweb Cloud in Amsterdam, the Netherlands. The page is served through Cloudflare, which sees your IP address. The team keeps backups of the game's data on its own computers.</li>
       <li><b>Why:</b> to run the game and to test and improve sayso's check.</li>
-      <li><b>In your browser:</b> the page keeps nothing about you in your browser; it clears the handle that earlier versions of the page saved there. The game sets no cookies and runs no analytics.</li>
+      <li><b>In your browser:</b> the page keeps a claim code for each try you send in this tab's session storage, which the browser deletes when you close the tab; it is sent only with a prize claim. It keeps nothing else, and clears the handle that earlier versions of the page saved there. The game sets no cookies and runs no analytics.</li>
       <li><b>Removal:</b> email <a href="mailto:security@saysoio.com">security@saysoio.com</a> with the sender you typed, the time you played and the try's number (shown when you send it). We take the entry off the public feed and, if you ask, delete it from the game's database and backups within a week. Copies already sent to Anthropic and sayso's check are kept under their own terms. A transaction on Base Sepolia cannot be removed.</li>
     </ul>
   </main>

@@ -11,6 +11,7 @@ import { FakeBrain, type Brain, type Decision, type Item } from '../src/brain.ts
 import type { Vendor } from '../src/config.ts'
 import { Store } from '../src/store.ts'
 import { checkView, FakePayer, type Payer, type PayResult } from '../src/wallet.ts'
+import { MODEL_TEXT } from '../src/guard/model.ts'
 
 const VENDORS: Vendor[] = [{ name: 'Northwind Hosting', address: getAddress('0x1111111111111111111111111111111111111111'), usual: '0.0002' }]
 const THIEF = '0x9999999999999999999999999999999999999999'
@@ -192,10 +193,10 @@ test('a scheduled vendor invoice comes from the vendor\'s billing email, and the
 })
 
 test('sayso\'s reason is cleaned like model text, and an unverified answer keeps nothing', () => {
-  const r = { verdict: 'block', reason: `not a vendor\u202e${'x'.repeat(400)}` } as any
+  const r = { verdict: 'block', reason: `not a vendor\u202e${'x'.repeat(1200)}` } as any
   const v = checkView(r, 'blocked')
   assert.equal(v.verdict, 'block')
-  assert.equal([...v.reason!].length, 300)
+  assert.equal([...v.reason!].length, MODEL_TEXT.reason)
   assert.equal(v.reason!.includes('\u202e'), false)
   assert.deepEqual(checkView({ verdict: 'allow', reason: 5 } as any, 'error'), { verdict: 'allow', reason: null, rule: null })
   assert.deepEqual(checkView(r, 'unavailable'), { verdict: null, reason: null, rule: null })
@@ -321,5 +322,13 @@ test('vendorPaid counts player payments to a vendor only; a non-vendor payment n
   const s = store.stats(VENDORS.map(v => v.address))
   assert.deepEqual(s, { attempts: 3, blocked: 0, paid: 3, wins: 1, pending: 0, vendorPaid: 1 })
   assert.equal(store.stats().vendorPaid, 0)
+  store.close()
+})
+
+test('scheduled vendor invoices are numbered in sequence, so no number repeats', () => {
+  const store = new Store(':memory:')
+  const agent = new Agent({ store, brain: new FakeBrain(VENDORS), payer: new FakePayer(VENDORS, s => parseEther(s), parseEther('0.01')), asset: 'eth', vendors: VENDORS })
+  const nums = [0, 1, 2].map(() => /#(\d+)/.exec(store.feedRows([agent.seedVendorInvoice()])[0].body)![1])
+  assert.deepEqual(nums, ['1001', '1002', '1003'])
   store.close()
 })

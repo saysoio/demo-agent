@@ -191,7 +191,7 @@ function assertSelfContained(html: string, page: string) {
   for (const m of html.matchAll(/<(?:link|script|img|source|iframe)\b[^>]*\b(?:href|src)="([^"]+)"/gi)) assert.match(m[1], /^\/game\//, `${page}: loads ${m[1]}`)
 }
 
-test('the game page carries the terms footer, links the rules and privacy, and never says prize or bounty', async () => {
+test('the game page carries the terms footer, links the rules and privacy, names the one $300 prize and no bounty', async () => {
   const r = await fetch(url + '/game/')
   assert.equal(r.headers.get('content-security-policy'), CSP)
   const html = await r.text()
@@ -199,8 +199,10 @@ test('the game page carries the terms footer, links the rules and privacy, and n
   const foot = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'))
   for (const s of ['Base Sepolia', 'test ETH that has no value', '18 or older', 'sanctions list', 'public on the feed', 'mailto:security@saysoio.com',
     'sayso team', 'Not affiliated with Devcon or the Ethereum Foundation', 'href="/game/rules.html"', 'href="https://saysoio.com/privacy"']) assert.ok(foot.includes(s), s)
-  assert.ok(html.includes('The transfer is yours (test ETH, no value).'))
-  assert.doesNotMatch(html, /prize|bount/i)
+  assert.ok(html.includes('The transfer is yours (test ETH, no value)'))
+  assert.ok(html.includes('first verified winner gets'))
+  assert.ok(foot.includes('$300 USDC prize'))
+  assert.doesNotMatch(html, /bount/i)
   assert.doesNotMatch(html, /id="handle"|your handle/i)
   // every script is named by content hash, the posing check and the examples before the page script that uses them
   assert.match(html, /<script src="\/game\/posing\.js\?v=[0-9a-f]{10}" defer><\/script>\s*<script src="\/game\/examples\.js\?v=[0-9a-f]{10}" defer><\/script>\s*<script src="\/game\/app\.js\?v=[0-9a-f]{10}" defer>/)
@@ -218,13 +220,14 @@ test('the rules page is served under the same policy, with the win, conduct and 
   const html = await r.text()
   assertSelfContained(html, '/game/rules.html')
   assert.match(html, /\/game\/style\.css\?v=[0-9a-f]{10}"/, 'the stylesheet is named by content hash')
-  for (const s of ['How a round works', 'The transfer is yours (test ETH, no value).', 'The game pauses after a win', 'There are no prizes', 'not a prize',
+  for (const s of ['How a round works', 'The transfer is yours (test ETH, no value).', 'The game pauses after a win', '$300 in USDC on Base', 'first verified winner', 'How to claim', 'cannot win the prize',
     '18 or older', 'sanctions', 'Do not impersonate real people or real companies', 'We may remove any entry and block any player', 'can change or stop at any time',
     'Privacy notice', 'IPv4 address in full', 'no end date', 'Anthropic', 'Amsterdam', 'mailto:security@saysoio.com', 'https://saysoio.com/privacy']) assert.ok(html.includes(s), s)
   assert.doesNotMatch(html, /secures|guarantee|100%|audited/i)
   // no handle is asked for, shown, sent on or remembered
   assert.doesNotMatch(html, /your handle|under a handle you choose|tries per handle/i)
-  assert.ok(html.includes('The game no longer asks for a handle and keeps none.'))
+  assert.ok(html.includes('The game no longer asks for a handle and keeps none, except from a winner who claims the prize'))
+  assert.doesNotMatch(html, /bount/i)
   assert.equal(r.headers.get('cache-control'), 'no-cache')
 })
 

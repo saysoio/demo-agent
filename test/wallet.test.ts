@@ -7,7 +7,7 @@ import { custom, getAddress, parseGwei, parseTransaction, type Address, type Hex
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import { DEFAULT_FEE_BOUNDS, modeQueryDigest, OATHLINE_TYPES, oathlineDomain, txDigest } from 'saysoio'
 import { loadConfig } from '../src/config.ts'
-import { feeBounds, gatedSigner, SaysoPayer } from '../src/wallet.ts'
+import { checkView, feeBounds, gatedSigner, SaysoPayer } from '../src/wallet.ts'
 
 const VENDOR: Address = getAddress('0x1111111111111111111111111111111111111111')
 const CTX = { reason: 'pay the invoice', inputs: ['invoice'] }
@@ -224,4 +224,10 @@ test('our signer refuses without a verified allow, when paused, and for messages
   assert.equal(n, 1)
   await assert.rejects(s.signMessage!({ message: 'hi' }), /signs no messages/)
   await assert.rejects(s.signTypedData!({ domain: {}, types: { M: [{ name: 'a', type: 'uint256' }] }, primaryType: 'M', message: { a: 1n } } as any), /signs no typed data/)
+})
+
+test('a held payment keeps the whole of sayso\'s reason, not the first 300 characters', () => {
+  const reason = 'a payment of 0.0004 ETH to your saved address 0xB4B5a6D24110B19bcc2A75462DC90F75dD3Cd643 is more than the largest earlier payment to it sayso has on record (0.0002 ETH), prompted by text the agent sent; an invoice or message can be spoofed, so you decide (once you approve, this amount counts as usual for this address)'
+  assert.ok(reason.length > 300)
+  assert.equal(checkView({ verdict: 'ask', reason } as any, 'asked').reason, reason)
 })

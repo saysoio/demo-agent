@@ -1,6 +1,6 @@
 // The box's only door to the internet: the /game/ page, a submit endpoint, the public feed, pot and rules, and the
 // admin calls behind a token. No other route exists; every answer carries a strict content policy.
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
@@ -10,7 +10,7 @@ import type { Agent } from './agent.ts'
 import { decimalsFor, unitName, type Config } from './config.ts'
 import { directory } from './directory.ts'
 import {
-  AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause,
+  AdminGate, BodyRefused, clientIp, errorTag, FEED_PAGE, hardenServer, ipKey, Limits, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseClaim,
   parseFeedQuery, parseSubmit, publicAttempt, publicDirectory, publicPot, publicRules, publicTrick, RateWindow, readJson, SharedRead, staticPath,
 } from './guard/index.ts'
 import { rulesView, type SignedRules } from './rules.ts'
@@ -18,6 +18,7 @@ import { dayName, dayStart } from './spend.ts'
 import type { Store } from './store.ts'
 import type { Payer } from './wallet.ts'
 
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url))
 
 const HEADERS = {
@@ -64,6 +65,7 @@ export function makeServer(d: ServerDeps): Server {
   const { cfg, store, agent, payer } = d
   const limits = new Limits(cfg.limits, d.now)
   const reads = new RateWindow(600, 60_000, d.now)
+  const claims = new RateWindow(10, 3_600_000, d.now)
   const admin = new AdminGate({ token: cfg.secrets.admin, localHeader: cfg.trustLocalHeader, now: d.now })
   const balance = new SharedRead(async () => formatUnits(await payer.balance(), decimalsFor(cfg.asset)), 15_000, d.now, e => d.log?.(`balance read failed: ${errorTag(e)}`))
 
@@ -96,6 +98,7 @@ export function makeServer(d: ServerDeps): Server {
     if (req.method === 'GET' && path.startsWith('/api/admin/')) {
       const no = admin.check(req); if (no) return send(res, no.status, { error: no.error })
       if (path === '/api/admin/spend') return send(res, 200, spendView())
+      if (path === '/api/admin/claims') return send(res, 200, { items: store.claims() })
       return send(res, 404, { error: 'not found' })
     }
 
@@ -123,8 +126,21 @@ export function makeServer(d: ServerDeps): Server {
       if (store.queued() >= cfg.limits.queueMax) return send(res, 503, { error: 'the inbox is full; try again in a minute' })
       const ok = limits.admit(ip)
       if (!ok.ok) return send(res, 429, { error: ok.error }, { 'retry-after': String(Math.ceil(ok.retryAfterMs / 1000)) })
-      const id = store.add({ source: 'player', from, ipKey: ipKey(ip), channel, body: text })
-      return send(res, 202, { id, queued: store.queued() })
+      // the code goes back to this sender only; the store keeps its hash, so a win can be claimed from this page alone
+      const claim = randomBytes(16).toString('hex')
+      const id = store.add({ source: 'player', from, ipKey: ipKey(ip), channel, body: text, claimHash: sha256(claim) })
+      return send(res, 202, { id, queued: store.queued(), claim })
+    }
+
+    if (req.method === 'POST' && path === '/api/claim') {
+      if (!claims.take(ipKey(ip))) return send(res, 429, { error: 'too many claims from your network; try again in an hour' })
+      let b: unknown
+      try { b = await readJson(req) } catch (e) { return refuseBody(res, e) }
+      const p = parseClaim(b); if (!p.ok) return send(res, 400, { error: p.error })
+      const r = store.claim(p.value.id, sha256(p.value.code), p.value.handle, p.value.payout)
+      if (r === 'ok') { d.log?.(`prize claim recorded for attempt #${p.value.id}`); return send(res, 200, { ok: true }) }
+      if (r === 'wrong code') return send(res, 403, { error: 'this claim code is not for that try' })
+      return send(res, 409, { error: r === 'claimed' ? 'this win is claimed already' : 'that try did not win' })
     }
 
     if (req.method === 'POST' && path.startsWith('/api/admin/')) {

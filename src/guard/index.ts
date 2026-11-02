@@ -7,7 +7,7 @@ export {
 } from './expose.ts'
 export {
   BodyRefused, boundedInt, cleanText, FEED_PAGE, MAX_BODY, MAX_FROM_CHARS, MAX_TEXT_CHARS, parseAdminHide, parseAdminPause, parseFeedQuery,
-  parseFrom, parseSubmit, readJson, type AdminHide, type AdminPause, type FeedQuery, type Parsed, type Submit,
+  parseClaim, parseFrom, parseSubmit, readJson, type Claim, type AdminHide, type AdminPause, type FeedQuery, type Parsed, type Submit,
 } from './input.ts'
 export {
   clientIp, hardenServer, ipKey, isLoopback, Limits, MAX_CONNECTIONS, proxyTrustProblem, RateWindow, SharedRead, unmapIp, WindowLimiter,

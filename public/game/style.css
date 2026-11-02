@@ -409,6 +409,13 @@ button.chip-v:hover { color: var(--s50); text-decoration-color: var(--chalk); }
 .sim-more summary { cursor: pointer; width: fit-content; color: var(--s50); text-decoration: underline; text-underline-offset: 3px; }
 .sim-card { margin-top: 8px; }
 .st-hold { --plate: #DDCC70; color: var(--s900); }
+/* the winner's claim, only in the tab that sent the winning try */
+.claim { display: grid; gap: 10px; padding: 14px; border: 2px solid var(--block); border-radius: 4px; background: var(--s900); }
+.claim[hidden] { display: none; }
+.claim-h { font: 700 14px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--s50); }
+.claim-t { font-size: 14px; color: var(--chalk); text-wrap: pretty; }
+.claim-l { display: grid; gap: 4px; font-size: 13px; color: var(--s200); }
+.claim-l input { font: 400 16px/1.4 var(--mono); }
 .feed-list.collapsed > li:nth-child(n+6) { display: none; }
 .feed-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .feed-foot:not(:has(button:not([hidden]))) { display: none; }

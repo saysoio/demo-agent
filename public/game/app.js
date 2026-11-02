@@ -15,6 +15,11 @@ let unit = '', explorerBase = '', oldest = null, newest = 0
 const FEED_SHORT = 5
 let expanded = false, hasOlder = false
 const shown = new Map()
+// claim codes for this tab's own tries (the server hands one back with each try), so a win can be claimed from here;
+// kept in this tab's session storage until it closes, never sent anywhere but the claim
+const CODES = 'claim-codes'
+const claimCodes = (() => { try { return new Map(Object.entries(JSON.parse(sessionStorage.getItem(CODES) ?? '{}'))) } catch { return new Map() } })()
+function saveCodes() { try { sessionStorage.setItem(CODES, JSON.stringify(Object.fromEntries(claimCodes))) } catch {} }
 // each feed row's attempt, so a later directory load can name the payee in its simulated block
 const rowData = new WeakMap()
 // ids shown as queued or thinking: followed by id once they fall off the newest page
@@ -182,6 +187,7 @@ function render(a) {
   labelled(li.querySelector('.thought'), 'Agent', a.thought ?? '')
   li.querySelector('.tag').hidden = a.source !== 'player'
   simulated(li, a)
+  claimForm(li, a)
   rowData.set(li, a)
   shown.set(a.id, li)
   if (a.status === 'done') waiting.delete(a.id); else waiting.add(a.id)
@@ -208,6 +214,30 @@ function simulated(li, a) {
     card.replaceChildren(c)
   }
 }
+// A win sent from this tab: the form that records the winner's handle and payout address (the address the test ETH
+// reached, unless they name another). Shown once per row; a claimed win says so instead.
+function claimForm(li, a) {
+  const f = li.querySelector('.claim'), entry = claimCodes.get(String(a.id))
+  f.hidden = !(a.win && entry)
+  if (f.hidden || f.dataset.ready) return
+  f.dataset.ready = '1'
+  const out = f.querySelector('.claim-msg')
+  if (entry === 'claimed') { f.replaceChildren(f.querySelector('.claim-h'), out); out.textContent = 'Claim recorded. We will contact you to verify it.'; return }
+  f.querySelector('.claim-payout').value = a.toAddr ?? ''
+  f.addEventListener('submit', async e => {
+    e.preventDefault()
+    const btn = f.querySelector('button'); btn.disabled = true; out.textContent = 'Sending…'; out.className = 'claim-msg msg'
+    try {
+      const r = await fetch('/api/claim', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: a.id, code: claimCodes.get(String(a.id)), handle: f.querySelector('.claim-handle').value, payout: f.querySelector('.claim-payout').value }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error ?? `error ${r.status}`)
+      claimCodes.set(String(a.id), 'claimed'); saveCodes()
+      f.replaceChildren(f.querySelector('.claim-h'), out); out.textContent = 'Claim recorded. We will contact you to verify it.'
+    } catch (err) { out.textContent = err.message; out.className = 'claim-msg msg bad'; btn.disabled = false }
+  })
+}
+
 // "0.0004" in an asset's smallest unit, as decimal text, with no float rounding
 function toWei(s, decimals) {
   const m = /^(\d+)(?:\.(\d+))?$/.exec(String(s))
@@ -461,6 +491,7 @@ $('form').addEventListener('submit', async e => {
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.error ?? `error ${r.status}`)
     $('text').value = ''; $('count').textContent = '0'; $('count-wrap').className = 'count'; madeUpNote()
+    if (typeof j.claim === 'string') { claimCodes.set(String(j.id), j.claim); saveCodes() }
     msg.textContent = `In the inbox (#${j.id}). Watch the feed.`
     loadFeed().catch(() => {})
   } catch (err) { msg.textContent = err.message; msg.className = 'msg bad' } finally { btn.disabled = false }

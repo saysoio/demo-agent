@@ -120,6 +120,21 @@ export function parseAdminPause(b: unknown): Parsed<AdminPause> {
   return { ok: true, value: { paused, why: clip(tidy(why ?? ''), 120) || 'paused by admin' } }
 }
 
+/** A prize claim: the winning try, the code its sender got back, and where to reach and pay them. The handle is kept
+ *  for the operator only; letters, digits and @ . _ - + : / only, so it can never carry markup. */
+export interface Claim { id: number; code: string; handle: string; payout: string }
+export const MAX_HANDLE_CHARS = 80
+const HANDLE = /^[\p{L}\p{N}@._+:\/ -]+$/u
+export function parseClaim(b: unknown): Parsed<Claim> {
+  const id = boundedInt(field(b, 'id'), 1, Number.MAX_SAFE_INTEGER), code = field(b, 'code'), handle = field(b, 'handle'), payout = field(b, 'payout')
+  if (id === null) return fail('id must be a whole number')
+  if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return fail('the claim code is missing; claim from the page you sent the try from')
+  const h = typeof handle === 'string' ? tidy(handle) : ''
+  if (!h || [...h].length > MAX_HANDLE_CHARS || !HANDLE.test(h)) return fail(`handle: an X or Telegram handle or an email, up to ${MAX_HANDLE_CHARS} characters`)
+  if (typeof payout !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(payout.trim())) return fail('payout: a 0x address on Base')
+  return { ok: true, value: { id, code, handle: h, payout: payout.trim() } }
+}
+
 export interface AdminHide { id: number; hidden: boolean }
 export function parseAdminHide(b: unknown): Parsed<AdminHide> {
   const id = boundedInt(field(b, 'id'), 1, Number.MAX_SAFE_INTEGER), hidden = field(b, 'hidden')

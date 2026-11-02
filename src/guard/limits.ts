@@ -56,8 +56,7 @@ export class RateWindow {
     if (c.n >= this.limit) return false
     c.n++
     return true
-  }
-}
+  }}
 
 /** One upstream read shared by every caller: a fresh value is reused, and while it is stale a single read is in flight
  *  for all of them. A failed read keeps the last value (null before the first success). */

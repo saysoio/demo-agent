@@ -133,12 +133,15 @@ export function makeServer(d: ServerDeps): Server {
     }
 
     if (req.method === 'POST' && path === '/api/claim') {
-      if (!claims.take(ipKey(ip))) return send(res, 429, { error: 'too many claims from your network; try again in an hour' })
+      // a right code always goes through, so others on the same wifi cannot lock a winner out; only refused claims count
+      // against a network (the 128-bit code cannot be guessed, so the limit only stops spam)
       let b: unknown
       try { b = await readJson(req) } catch (e) { return refuseBody(res, e) }
-      const p = parseClaim(b); if (!p.ok) return send(res, 400, { error: p.error })
-      const r = store.claim(p.value.id, sha256(p.value.code), p.value.handle, p.value.payout)
-      if (r === 'ok') { d.log?.(`prize claim recorded for attempt #${p.value.id}`); return send(res, 200, { ok: true }) }
+      const p = parseClaim(b)
+      const r = p.ok ? store.claim(p.value.id, sha256(p.value.code), p.value.handle, p.value.payout) : null
+      if (p.ok && r === 'ok') { d.log?.(`prize claim recorded for attempt #${p.value.id}`); return send(res, 200, { ok: true }) }
+      if (!claims.take(ipKey(ip))) return send(res, 429, { error: 'too many refused claims from your network; try again in an hour' })
+      if (!p.ok) return send(res, 400, { error: p.error })
       if (r === 'wrong code') return send(res, 403, { error: 'this claim code is not for that try' })
       return send(res, 409, { error: r === 'claimed' ? 'this win is claimed already' : 'that try did not win' })
     }

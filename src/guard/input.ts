@@ -1,6 +1,7 @@
 // One parser per API route: each takes what came over the wire and returns typed values or an error for the player.
 // Player text is cleaned here, never filtered for meaning: tricking the agent is the game.
 import type { IncomingMessage } from 'node:http'
+import { getAddress, isAddress } from 'viem'
 import { CHANNELS, type Channel } from '../store.ts'
 import { clip, tidy } from './text.ts'
 
@@ -131,8 +132,10 @@ export function parseClaim(b: unknown): Parsed<Claim> {
   if (typeof code !== 'string' || !/^[0-9a-f]{32}$/.test(code)) return fail('the claim code is missing; claim from the page you sent the try from')
   const h = typeof handle === 'string' ? tidy(handle) : ''
   if (!h || [...h].length > MAX_HANDLE_CHARS || !HANDLE.test(h)) return fail(`handle: an X or Telegram handle or an email, up to ${MAX_HANDLE_CHARS} characters`)
-  if (typeof payout !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(payout.trim())) return fail('payout: a 0x address on Base')
-  return { ok: true, value: { id, code, handle: h, payout: payout.trim() } }
+  // all lower or all upper case is taken as typed; mixed case must carry a valid checksum (a typo there is caught)
+  const pay = typeof payout === 'string' ? payout.trim() : ''
+  if (!isAddress(pay, { strict: !/^0x([0-9a-f]{40}|[0-9A-F]{40})$/.test(pay) })) return fail('payout: a 0x address on Base (check it for typos)')
+  return { ok: true, value: { id, code, handle: h, payout: getAddress(pay.toLowerCase()) } }
 }
 
 export interface AdminHide { id: number; hidden: boolean }

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { after, before, test } from 'node:test'
-import { parseEther } from 'viem'
+import { getAddress, parseEther } from 'viem'
 import { Agent } from '../src/agent.ts'
 import { FakeBrain } from '../src/brain.ts'
 import { loadConfig } from '../src/config.ts'
@@ -71,7 +71,7 @@ test('the claims are for the operator only', async () => {
 
 test('a claim needs a try number, a code, a handle and a payout address', () => {
   const ok = parseClaim({ id: 3, code: 'a'.repeat(32), handle: '  @winner_x ', payout: PAYOUT })
-  assert.deepEqual(ok, { ok: true, value: { id: 3, code: 'a'.repeat(32), handle: '@winner_x', payout: PAYOUT } })
+  assert.deepEqual(ok, { ok: true, value: { id: 3, code: 'a'.repeat(32), handle: '@winner_x', payout: getAddress(PAYOUT) } })
   for (const b of [
     { id: 3, code: 'a'.repeat(32), handle: '', payout: PAYOUT },
     { id: 3, code: 'a'.repeat(32), handle: 'x'.repeat(81), payout: PAYOUT },
@@ -80,4 +80,17 @@ test('a claim needs a try number, a code, a handle and a payout address', () => 
     { id: 0, code: 'a'.repeat(32), handle: '@x', payout: PAYOUT },
     { id: 3, code: 'a'.repeat(32), handle: '<b>@x</b>', payout: PAYOUT },
   ]) assert.equal(parseClaim(b).ok, false, JSON.stringify(b))
+})
+
+test('a payout address with a broken checksum is refused; all-lowercase is taken and checksummed', () => {
+  const good = '0x52908400098527886E0F7030069857D2E4169EE7'
+  assert.equal(parseClaim({ id: 1, code: 'a'.repeat(32), handle: '@x', payout: good.toLowerCase() }).ok, true)
+  assert.equal(parseClaim({ id: 1, code: 'a'.repeat(32), handle: '@x', payout: '0x52908400098527886e0F7030069857D2E4169EE7' }).ok, false)
+})
+
+test('refused claims from a network run out, but its winner\'s right code still gets through', async () => {
+  const { id, claim } = await tryOf(true)
+  for (let i = 0; i < 10; i++) await post('/api/claim', { id, code: 'e'.repeat(32), handle: '@spam', payout: PAYOUT })
+  assert.equal((await post('/api/claim', { id, code: 'e'.repeat(32), handle: '@spam', payout: PAYOUT })).status, 429)
+  assert.equal((await post('/api/claim', { id, code: claim, handle: '@w', payout: PAYOUT })).status, 200)
 })

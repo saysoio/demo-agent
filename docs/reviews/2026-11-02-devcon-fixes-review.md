@@ -88,3 +88,10 @@ Checks run: `npm test` 139/139 pass, `npx tsc --noEmit` clean (exit 0).
     address to sayso's wallet onchain. One clause in the privacy notice covers it.
 11. **Handle may look like a URL** (`src/guard/input.ts:128`): `:` and `/` allow `javascript:...`. Harmless while
     `/api/admin/claims` is read as JSON; if an admin page ever renders it as a link, it must not become an `href`.
+
+## Fixes applied (2026-11-02)
+
+- Must-fix 1 and 2: rules define "first" (earliest win by landing time, verified and claimed within 7 days, else the next win), the offer window (from 2 November 2026 until paid or ended on the page; ending never cancels an earlier win; no winner, no payment; earlier wins do not count), a 7-day claim deadline, an email fallback for a closed tab that pays only the address the test ETH reached, and "a win made before it stops still gets the prize terms" under No promises. Live `wins` was 0 on 2 November, so no earlier win exists. Still for the founder: confirm the prize is funded and these terms.
+- Must-fix 3: the block now says "Simulated by Sayso, never sent" (sayso's check simulates every transaction it judges on its copy of the chain) and labels the line as the transaction the agent asked the wallet to sign (unsigned).
+- Should-fix: a right claim code is never rate-limited; only refused claims count per network. Mixed-case payout addresses must carry a valid checksum and payouts are stored checksummed. The stopped-trick card clips sayso's reason to 300 characters.
+- Left: a reloaded tab shows its win only while the row is in the loaded feed pages.

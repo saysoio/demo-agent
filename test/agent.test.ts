@@ -11,6 +11,7 @@ import { FakeBrain, type Brain, type Decision, type Item } from '../src/brain.ts
 import type { Vendor } from '../src/config.ts'
 import { Store } from '../src/store.ts'
 import { checkView, FakePayer, type Payer, type PayResult } from '../src/wallet.ts'
+import { MODEL_TEXT } from '../src/guard/model.ts'
 
 const VENDORS: Vendor[] = [{ name: 'Northwind Hosting', address: getAddress('0x1111111111111111111111111111111111111111'), usual: '0.0002' }]
 const THIEF = '0x9999999999999999999999999999999999999999'
@@ -192,10 +193,10 @@ test('a scheduled vendor invoice comes from the vendor\'s billing email, and the
 })
 
 test('sayso\'s reason is cleaned like model text, and an unverified answer keeps nothing', () => {
-  const r = { verdict: 'block', reason: `not a vendor\u202e${'x'.repeat(400)}` } as any
+  const r = { verdict: 'block', reason: `not a vendor\u202e${'x'.repeat(1200)}` } as any
   const v = checkView(r, 'blocked')
   assert.equal(v.verdict, 'block')
-  assert.equal([...v.reason!].length, 300)
+  assert.equal([...v.reason!].length, MODEL_TEXT.reason)
   assert.equal(v.reason!.includes('\u202e'), false)
   assert.deepEqual(checkView({ verdict: 'allow', reason: 5 } as any, 'error'), { verdict: 'allow', reason: null, rule: null })
   assert.deepEqual(checkView(r, 'unavailable'), { verdict: null, reason: null, rule: null })

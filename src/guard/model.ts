@@ -25,5 +25,6 @@ export function cleanModelText(s: unknown, n: number): string | null {
   return clip(tidy(s), n) || null
 }
 
-/** Lengths kept of each text the model writes, and of sayso's reason, which is shown next to it. */
-export const MODEL_TEXT = { memo: 80, thought: 300, to: 60, amount: 30, reason: 300 } as const
+/** Lengths kept of each text the model writes, and of sayso's reason, which is shown next to it. sayso's reasons for a
+ *  held payment run past 300 characters (both amounts, the address and what the owner decides), so it keeps more. */
+export const MODEL_TEXT = { memo: 80, thought: 300, to: 60, amount: 30, reason: 1000 } as const
